@@ -51,7 +51,7 @@ export default async function UsuariosPage({
           const isSelf = user.id === session.user.id;
           return (
             <li key={user.id} className="rounded-lg border border-gray-200 p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                 <span className="font-medium">
                   {user.name} {isSelf && <span className="text-xs text-gray-400">(tú)</span>}
                 </span>
@@ -67,7 +67,7 @@ export default async function UsuariosPage({
                     name="role"
                     defaultValue={user.role}
                     disabled={isSelf}
-                    className="rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100"
+                    className="rounded-md border border-gray-300 px-3 py-3 disabled:bg-gray-100"
                   >
                     <option value="ADMIN">Administrador</option>
                     <option value="EMPLOYEE">Empleado</option>
@@ -79,7 +79,7 @@ export default async function UsuariosPage({
                     name="active"
                     defaultValue={user.active ? "true" : "false"}
                     disabled={isSelf}
-                    className="rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-100"
+                    className="rounded-md border border-gray-300 px-3 py-3 disabled:bg-gray-100"
                   >
                     <option value="true">Activo</option>
                     <option value="false">Inactivo</option>
@@ -88,7 +88,7 @@ export default async function UsuariosPage({
                 <button
                   type="submit"
                   disabled={isSelf}
-                  className="rounded-md bg-gray-900 px-3 py-2 text-sm text-white disabled:opacity-40"
+                  className="rounded-md bg-gray-900 px-3 py-3 text-sm text-white disabled:opacity-40"
                 >
                   Guardar
                 </button>
@@ -104,10 +104,10 @@ export default async function UsuariosPage({
                     name="newPassword"
                     minLength={8}
                     required
-                    className="rounded-md border border-gray-300 px-3 py-2"
+                    className="rounded-md border border-gray-300 px-3 py-3"
                   />
                 </label>
-                <button type="submit" className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white">
+                <button type="submit" className="rounded-md bg-blue-600 px-3 py-3 text-sm text-white">
                   Resetear contraseña
                 </button>
               </form>
@@ -121,7 +121,7 @@ export default async function UsuariosPage({
         <h2 className="text-sm font-medium">Nuevo usuario</h2>
         <label className="grid gap-1 text-sm">
           Nombre
-          <input name="name" required minLength={2} className="rounded-md border border-gray-300 px-3 py-2" />
+          <input name="name" required minLength={2} className="rounded-md border border-gray-300 px-3 py-3" />
         </label>
         <label className="grid gap-1 text-sm">
           Email
@@ -129,7 +129,7 @@ export default async function UsuariosPage({
             type="email"
             name="email"
             required
-            className="rounded-md border border-gray-300 px-3 py-2"
+            className="rounded-md border border-gray-300 px-3 py-3"
           />
         </label>
         <label className="grid gap-1 text-sm">
@@ -139,17 +139,17 @@ export default async function UsuariosPage({
             name="password"
             minLength={8}
             required
-            className="rounded-md border border-gray-300 px-3 py-2"
+            className="rounded-md border border-gray-300 px-3 py-3"
           />
         </label>
         <label className="grid gap-1 text-sm">
           Rol
-          <select name="role" required className="rounded-md border border-gray-300 px-3 py-2">
+          <select name="role" required className="rounded-md border border-gray-300 px-3 py-3">
             <option value="EMPLOYEE">Empleado</option>
             <option value="ADMIN">Administrador</option>
           </select>
         </label>
-        <button type="submit" className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white">
+        <button type="submit" className="rounded-md bg-gray-900 px-4 py-3 text-sm font-medium text-white">
           Crear usuario
         </button>
       </form>

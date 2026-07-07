@@ -53,21 +53,26 @@ enum SettlementMethod {
 }
 
 model Organization {
-  id                       String   @id @default(auto()) @map("_id") @db.ObjectId
-  slug                     String   @unique
-  name                     String
-  timezone                 String   @default("America/Bogota")
-  depositPercentage        Int      @default(50)
-  cancellationWindowHours  Int      @default(24)
-  bookingHoldMinutes       Int      @default(15)
-  createdAt                DateTime @default(now())
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  slug                    String   @unique
+  name                    String
+  logoUrl                 String?
+  country                 String   @default("Colombia")
+  department              String?
+  municipality            String?
+  timezone                String   @default("America/Bogota")
+  depositPercentage       Int      @default(50)
+  cancellationWindowHours Int      @default(24)
+  bookingHoldMinutes      Int      @default(15)
+  createdAt               DateTime @default(now())
 
-  venues           Venue[]
-  bookings         Booking[]
-  users            User[]
-  consumptionItems ConsumptionItem[]
-  cashShifts       CashShift[]
-  slotBlocks       SlotBlock[]
+  venues            Venue[]
+  bookings          Booking[]
+  recurringBookings RecurringBooking[]
+  users             User[]
+  consumptionItems  ConsumptionItem[]
+  cashShifts        CashShift[]
+  slotBlocks        SlotBlock[]
 }
 
 model User {
@@ -121,12 +126,12 @@ model CashShift {
 
   // Disputa (negocio.md §6.5): solo el ADMIN puede reabrir/ajustar; cada ajuste queda en un log
   // inmutable (nunca se sobrescribe ni se borra) y el descuadre solo se resuelve explícitamente.
-  adjustments  CashShiftAdjustment[]
-  resolvedAt   DateTime?
+  adjustments    CashShiftAdjustment[]
+  resolvedAt     DateTime?
   resolvedByName String?
 
   organization Organization @relation(fields: [orgId], references: [id])
-  employee     User          @relation(fields: [employeeId], references: [id])
+  employee     User         @relation(fields: [employeeId], references: [id])
 
   @@index([orgId, employeeId])
 }
@@ -156,9 +161,10 @@ model Venue {
   capacity   Int?
   active     Boolean   @default(true)
 
-  organization Organization @relation(fields: [orgId], references: [id])
-  bookings     Booking[]
-  slotBlocks   SlotBlock[]
+  organization      Organization       @relation(fields: [orgId], references: [id])
+  bookings          Booking[]
+  slotBlocks        SlotBlock[]
+  recurringBookings RecurringBooking[]
 
   @@index([orgId])
 }
@@ -181,17 +187,47 @@ model SlotBlock {
   @@index([orgId, venueId, date])
 }
 
+// Serie de reservas recurrentes creada por el admin (ej. "cliente fijo todos los martes 6pm").
+// Solo guarda la regla; cada turno real es un Booking individual (recurringBookingId) generado de
+// una sola vez al crear la serie, ya CONFIRMADA y sin abono — el admin la crea directo, no pasa por
+// el flujo de pago del cliente. No hay renovación automática: el admin define startDate/endDate y
+// esas son todas las ocurrencias que van a existir.
+model RecurringBooking {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  orgId   String @db.ObjectId
+  venueId String @db.ObjectId
+
+  customerName  String
+  customerPhone String
+
+  startTime String // "HH:mm"
+  endTime   String // "HH:mm"
+  startDate DateTime // primera ocurrencia
+  endDate   DateTime // última ocurrencia permitida (inclusive)
+
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  venue        Venue        @relation(fields: [venueId], references: [id])
+  bookings     Booking[]
+
+  @@index([orgId, venueId])
+}
+
 model Booking {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  orgId     String   @db.ObjectId
-  venueId   String   @db.ObjectId
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  orgId   String @db.ObjectId
+  venueId String @db.ObjectId
+
+  // Presente solo en ocurrencias generadas por una reserva recurrente (ver RecurringBooking).
+  recurringBookingId String? @db.ObjectId
 
   customerName  String
   customerPhone String
 
   date      DateTime // día del turno (medianoche local normalizada a UTC)
-  startTime String   // "HH:mm"
-  endTime   String   // "HH:mm"
+  startTime String // "HH:mm"
+  endTime   String // "HH:mm"
 
   status BookingStatus @default(PENDIENTE_PAGO)
 
@@ -209,9 +245,9 @@ model Booking {
   consumptionLines ConsumptionLine[]
   consumptionTotal Int               @default(0)
 
-  paymentMethod    PaymentMethod?
-  boldPaymentRef    String?
-  receiptUrl        String? // comprobante subido a Azure Blob (Nequi/Daviplata)
+  paymentMethod  PaymentMethod?
+  boldPaymentRef String?
+  receiptUrl     String? // comprobante subido a Azure Blob (Nequi/Daviplata)
 
   // Cómo pagó el cliente el saldo restante + consumos al cerrar la cuenta (closeAccount, Fase 2).
   // Distinto de paymentMethod, que es el canal del abono inicial.
@@ -221,8 +257,10 @@ model Booking {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  organization Organization @relation(fields: [orgId], references: [id])
-  venue        Venue        @relation(fields: [venueId], references: [id])
+  organization     Organization      @relation(fields: [orgId], references: [id])
+  venue            Venue             @relation(fields: [venueId], references: [id])
+  recurringBooking RecurringBooking? @relation(fields: [recurringBookingId], references: [id])
 
   @@index([orgId, venueId, date])
+  @@index([recurringBookingId])
 }

@@ -7,12 +7,10 @@ const DAYS_AHEAD = 14;
 // — permite saltar directo a cualquier día sin navegar de a uno, y se ve el día de la semana de un
 // vistazo (útil para decidir "el sábado" sin tener que contar).
 export function DaySelector({
-  orgSlug,
-  venueId,
+  basePath,
   selectedDateIso,
 }: {
-  orgSlug: string;
-  venueId: string;
+  basePath: string;
   selectedDateIso: string;
 }) {
   const today = todayBusinessDate();
@@ -28,7 +26,7 @@ export function DaySelector({
         return (
           <Link
             key={dateIso}
-            href={`/${orgSlug}/${venueId}?date=${dateIso}`}
+            href={`${basePath}?date=${dateIso}`}
             role="tab"
             aria-selected={isSelected}
             className={`flex min-w-14 flex-shrink-0 flex-col items-center rounded-xl border px-3 py-2 text-center transition-colors ${

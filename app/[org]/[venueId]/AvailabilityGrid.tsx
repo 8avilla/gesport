@@ -75,7 +75,9 @@ export function AvailabilityGrid({
 
       {availableCount === 0 ? (
         <div className="mt-3 rounded-lg border border-dashed border-gray-200 py-8 text-center text-sm text-gray-500">
-          No quedan horarios libres este día. Prueba otra fecha arriba.
+          <div className="text-2xl">👀</div>
+          <p className="mt-2">No quedan horarios libres este día.</p>
+          <p className="text-gray-400">Prueba otra fecha arriba ☝️</p>
         </div>
       ) : (
         <div className="mt-3 grid gap-4">

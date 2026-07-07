@@ -58,7 +58,7 @@ export default async function MantenimientoPage({
           <Link
             key={v.id}
             href={`/${orgSlug}/admin/mantenimiento?venueId=${v.id}&date=${dateIso}`}
-            className={`rounded-md border px-3 py-1.5 text-sm ${
+            className={`rounded-md border px-3 py-2.5 text-sm ${
               v.id === venue.id ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 text-gray-700"
             }`}
           >
@@ -112,7 +112,7 @@ export default async function MantenimientoPage({
                     <input type="hidden" name="slotBlockId" value={block.id} />
                     <input type="hidden" name="venueId" value={venue.id} />
                     <input type="hidden" name="date" value={dateIso} />
-                    <button type="submit" className="rounded-md bg-gray-900 px-3 py-1 text-sm text-white">
+                    <button type="submit" className="rounded-md bg-gray-900 px-3 py-2.5 text-sm text-white">
                       Desbloquear
                     </button>
                   </form>
@@ -128,9 +128,9 @@ export default async function MantenimientoPage({
                   <input
                     name="reason"
                     placeholder="Motivo (opcional)"
-                    className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                    className="flex-1 rounded-md border border-gray-300 px-2 py-2.5 text-sm"
                   />
-                  <button type="submit" className="rounded-md bg-amber-600 px-3 py-1 text-sm text-white">
+                  <button type="submit" className="rounded-md bg-amber-600 px-3 py-2.5 text-sm text-white">
                     Bloquear
                   </button>
                 </form>

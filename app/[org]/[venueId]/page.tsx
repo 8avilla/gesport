@@ -5,10 +5,7 @@ import { getDaySlots, parseDateParam, todayIso } from "@/lib/booking/availabilit
 import { formatBusinessDayLabel } from "@/lib/time/business-day";
 import { AvailabilityGrid } from "./AvailabilityGrid";
 import { DaySelector } from "./DaySelector";
-
-const ERROR_MESSAGES: Record<string, string> = {
-  cupo_no_disponible: "Justo alguien más reservó esa hora. Elige otra, por favor.",
-};
+import { DateJumpInput } from "./DateJumpInput";
 
 const VENUE_TYPE_ICON: Record<string, string> = {
   FUTBOL_5: "⚽",
@@ -21,10 +18,10 @@ export default async function VenuePage({
   searchParams,
 }: {
   params: Promise<{ org: string; venueId: string }>;
-  searchParams: Promise<{ date?: string; error?: string }>;
+  searchParams: Promise<{ date?: string }>;
 }) {
   const { org: orgSlug, venueId } = await params;
-  const { date: dateParam, error } = await searchParams;
+  const { date: dateParam } = await searchParams;
 
   const organization = await db.organization.findUnique({ where: { slug: orgSlug } });
   if (!organization) {
@@ -65,12 +62,12 @@ export default async function VenuePage({
           </span>
         </div>
 
-        {error && ERROR_MESSAGES[error] && (
-          <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">{ERROR_MESSAGES[error]}</p>
-        )}
+        <div className="mt-6 flex justify-end">
+          <DateJumpInput orgSlug={orgSlug} venueId={venue.id} selectedDateIso={dateIso} />
+        </div>
 
-        <div className="mt-6">
-          <DaySelector orgSlug={orgSlug} venueId={venue.id} selectedDateIso={dateIso} />
+        <div className="mt-2">
+          <DaySelector basePath={`/${orgSlug}/${venue.id}`} selectedDateIso={dateIso} />
         </div>
 
         <p className="mt-4 text-sm font-medium text-gray-700">

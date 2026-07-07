@@ -105,7 +105,9 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
 
         {venues.length === 0 && (
           <li className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
-            Este complejo todavía no tiene canchas configuradas.
+            <div className="text-2xl">🏗️</div>
+            <p className="mt-2">Todavía no hay canchas configuradas aquí.</p>
+            <p className="text-gray-400">Vuelve pronto 👋</p>
           </li>
         )}
       </ul>

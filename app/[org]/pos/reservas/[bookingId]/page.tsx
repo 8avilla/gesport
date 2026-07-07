@@ -77,7 +77,7 @@ export default async function CuentaPage({
             <input type="hidden" name="bookingId" value={booking.id} />
             <label className="grid gap-1 text-sm">
               Producto
-              <select name="productId" required className="rounded-md border border-gray-300 px-3 py-2">
+              <select name="productId" required className="rounded-md border border-gray-300 px-3 py-3">
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>
                     {product.name} — ${product.price.toLocaleString("es-CO")} ({product.stock} disp.)
@@ -89,14 +89,15 @@ export default async function CuentaPage({
               Cantidad
               <input
                 type="number"
+                inputMode="numeric"
                 name="quantity"
                 min={1}
                 defaultValue={1}
                 required
-                className="rounded-md border border-gray-300 px-3 py-2"
+                className="rounded-md border border-gray-300 px-3 py-3"
               />
             </label>
-            <button type="submit" className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white">
+            <button type="submit" className="rounded-md bg-gray-900 px-4 py-3 text-sm font-medium text-white">
               Agregar a la cuenta
             </button>
           </form>
@@ -109,7 +110,7 @@ export default async function CuentaPage({
               <select
                 name="settlementMethod"
                 required
-                className="rounded-md border border-gray-300 px-3 py-2"
+                className="rounded-md border border-gray-300 px-3 py-3"
               >
                 <option value="EFECTIVO">Efectivo</option>
                 <option value="TRANSFERENCIA">Transferencia (Nequi/Daviplata)</option>
@@ -118,7 +119,7 @@ export default async function CuentaPage({
             </label>
             <button
               type="submit"
-              className="w-full rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700"
+              className="w-full rounded-md bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700"
             >
               Cobrar (${totalToCollect.toLocaleString("es-CO")})
             </button>

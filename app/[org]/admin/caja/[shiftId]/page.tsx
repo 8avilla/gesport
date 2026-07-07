@@ -82,10 +82,11 @@ export default async function CajaDetallePage({
               Nuevo efectivo contado
               <input
                 type="number"
+                inputMode="numeric"
                 name="newCountedCash"
                 min={0}
                 required
-                className="rounded-md border border-gray-300 px-3 py-2"
+                className="rounded-md border border-gray-300 px-3 py-3"
               />
             </label>
             <label className="grid gap-1 text-sm">
@@ -94,10 +95,10 @@ export default async function CajaDetallePage({
                 name="reason"
                 required
                 minLength={5}
-                className="rounded-md border border-gray-300 px-3 py-2"
+                className="rounded-md border border-gray-300 px-3 py-3"
               />
             </label>
-            <button type="submit" className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white">
+            <button type="submit" className="rounded-md bg-gray-900 px-4 py-3 text-sm font-medium text-white">
               Registrar ajuste
             </button>
           </form>
@@ -107,7 +108,7 @@ export default async function CajaDetallePage({
             <input type="hidden" name="shiftId" value={shift.id} />
             <button
               type="submit"
-              className="w-full rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700"
+              className="w-full rounded-md bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700"
             >
               Cerrar disputa
             </button>

@@ -3,8 +3,7 @@
 import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import { Prisma } from "@/lib/generated/prisma";
+import { db, isUniqueConstraintError } from "@/lib/db";
 import { uploadReceipt as uploadReceiptToBlob } from "@/lib/storage/azure";
 import { businessDayStart } from "@/lib/time/business-day";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
@@ -18,21 +17,6 @@ const createBookingSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
 });
-
-function isUniqueConstraintError(error: unknown): boolean {
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    return error.code === "P2002";
-  }
-  // Respaldo por si el bundling duplica el módulo de Prisma (visto en dev con Turbopack tras hot
-  // reloads) y el `instanceof` de arriba no reconoce el error aunque sí sea un P2002 real — el
-  // código de error siempre está presente en el objeto, sin importar de qué copia de la clase venga.
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: unknown }).code === "P2002"
-  );
-}
 
 async function getBaseUrl(): Promise<string> {
   if (process.env.NEXT_PUBLIC_SITE_URL) {

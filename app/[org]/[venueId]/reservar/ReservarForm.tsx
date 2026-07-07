@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
+import { toast } from "sonner";
 import {
   createBookingShell,
   updateBookingContact,
@@ -143,6 +144,16 @@ export function ReservarForm({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusData]);
+
+  useEffect(() => {
+    if (shell && !shell.ok) {
+      toast.error(
+        shell.error === "cupo_no_disponible"
+          ? "Justo alguien más reservó esa hora."
+          : "Demasiados intentos seguidos. Espera unos minutos y vuelve a intentarlo.",
+      );
+    }
+  }, [shell]);
 
   if (loading) {
     return <FormSkeleton />;

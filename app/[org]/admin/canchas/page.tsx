@@ -38,28 +38,30 @@ export default async function CanchasPage({ params }: { params: Promise<{ org: s
                   name="imageUrl"
                   defaultValue={venue.imageUrl ?? ""}
                   placeholder="https://…"
-                  className="rounded-md border border-gray-300 px-3 py-2"
+                  className="rounded-md border border-gray-300 px-3 py-3"
                 />
               </label>
               <label className="grid gap-1 text-sm">
                 Tarifa/hora
                 <input
                   type="number"
+                  inputMode="numeric"
                   name="hourlyRate"
                   min={0}
                   defaultValue={venue.hourlyRate}
-                  className="rounded-md border border-gray-300 px-3 py-2"
+                  className="rounded-md border border-gray-300 px-3 py-3"
                 />
               </label>
               <label className="grid gap-1 text-sm">
                 Jugadores (opcional)
                 <input
                   type="number"
+                  inputMode="numeric"
                   name="capacity"
                   min={0}
                   defaultValue={venue.capacity ?? ""}
                   placeholder="Ej: 10"
-                  className="w-24 rounded-md border border-gray-300 px-3 py-2"
+                  className="w-24 rounded-md border border-gray-300 px-3 py-3"
                 />
               </label>
               <label className="grid gap-1 text-sm">
@@ -67,13 +69,13 @@ export default async function CanchasPage({ params }: { params: Promise<{ org: s
                 <select
                   name="active"
                   defaultValue={venue.active ? "true" : "false"}
-                  className="rounded-md border border-gray-300 px-3 py-2"
+                  className="rounded-md border border-gray-300 px-3 py-3"
                 >
                   <option value="true">Activa</option>
                   <option value="false">Inactiva</option>
                 </select>
               </label>
-              <button type="submit" className="rounded-md bg-gray-900 px-3 py-2 text-sm text-white">
+              <button type="submit" className="rounded-md bg-gray-900 px-3 py-3 text-sm text-white">
                 Guardar
               </button>
             </form>
@@ -88,11 +90,11 @@ export default async function CanchasPage({ params }: { params: Promise<{ org: s
         <h2 className="text-sm font-medium">Nueva cancha</h2>
         <label className="grid gap-1 text-sm">
           Nombre
-          <input name="name" required minLength={2} className="rounded-md border border-gray-300 px-3 py-2" />
+          <input name="name" required minLength={2} className="rounded-md border border-gray-300 px-3 py-3" />
         </label>
         <label className="grid gap-1 text-sm">
           Tipo
-          <select name="type" required className="rounded-md border border-gray-300 px-3 py-2">
+          <select name="type" required className="rounded-md border border-gray-300 px-3 py-3">
             <option value="FUTBOL_5">Fútbol 5</option>
             <option value="FUTBOL_8">Fútbol 8</option>
             <option value="PADEL">Pádel</option>
@@ -102,13 +104,14 @@ export default async function CanchasPage({ params }: { params: Promise<{ org: s
           Tarifa por hora
           <input
             type="number"
+            inputMode="numeric"
             name="hourlyRate"
             min={0}
             required
-            className="rounded-md border border-gray-300 px-3 py-2"
+            className="rounded-md border border-gray-300 px-3 py-3"
           />
         </label>
-        <button type="submit" className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white">
+        <button type="submit" className="rounded-md bg-gray-900 px-4 py-3 text-sm font-medium text-white">
           Crear cancha
         </button>
       </form>

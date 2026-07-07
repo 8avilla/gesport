@@ -12,6 +12,7 @@
     "@azure/storage-blob": "^12.33.0",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
+    "divipola": "^1.0.3",
     "form-data": "^4.0.6",
     "mailgun.js": "^13.2.0",
     "next": "16.2.10",
@@ -19,6 +20,7 @@
     "prisma": "^6.19.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "sonner": "^2.0.7",
     "swr": "^2.4.2",
     "zod": "^4.4.3"
   },

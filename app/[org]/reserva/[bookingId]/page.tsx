@@ -9,6 +9,8 @@ import { formatBusinessDayLabel } from "@/lib/time/business-day";
 import { SubmitButton } from "@/app/components/SubmitButton";
 import { BoldButton } from "@/app/components/BoldButton";
 import { VenueSummaryCard } from "@/app/components/VenueSummaryCard";
+import { ShareWhatsAppButton } from "@/app/components/ShareWhatsAppButton";
+import { QueryToast } from "@/app/components/QueryToast";
 import { StatusWatcher } from "./StatusWatcher";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -78,9 +80,7 @@ export default async function ReservaPage({
         )}
       </div>
 
-      {error && ERROR_MESSAGES[error] && (
-        <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">{ERROR_MESSAGES[error]}</p>
-      )}
+      {error && ERROR_MESSAGES[error] && <QueryToast type="error" message={ERROR_MESSAGES[error]} />}
 
       {booking.status === BookingStatus.CONFIRMADA && (
         <>
@@ -117,9 +117,13 @@ export default async function ReservaPage({
             )}
           </div>
 
+          <ShareWhatsAppButton
+            message={`¡Reserva confirmada! 🎉\n${venue?.name ?? "Cancha"} — ${weekday} ${day} de ${month} a las ${booking.startTime}.\nOrganizado con ${organization.name}.`}
+          />
+
           <Link
             href={`/${orgSlug}`}
-            className="mt-4 block rounded-md border border-gray-200 px-4 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="mt-3 block rounded-md border border-gray-200 px-4 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             Volver al inicio
           </Link>
@@ -250,9 +254,7 @@ export default async function ReservaPage({
         </div>
       )}
 
-      {comprobante === "enviado" && (
-        <p className="mt-4 text-sm text-gray-500">Comprobante recibido, gracias.</p>
-      )}
+      {comprobante === "enviado" && <QueryToast type="success" message="Comprobante recibido, gracias." />}
 
       {booking.status === BookingStatus.PENDIENTE_PAGO && (
         <StatusWatcher orgSlug={orgSlug} bookingId={booking.id} currentStatus={booking.status} />

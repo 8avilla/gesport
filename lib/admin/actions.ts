@@ -3,9 +3,19 @@
 import { notFound, redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { db } from "@/lib/db";
 import { requireAdminSession } from "@/lib/auth/session-guards";
-import { BookingStatus, canTransition, computeReleasedSlotKey } from "@/lib/booking/state-machine";
+import {
+  BookingStatus,
+  canTransition,
+  computeBlockingSlotKey,
+  computeReleasedSlotKey,
+} from "@/lib/booking/state-machine";
+import { isValidMunicipio } from "@/lib/data/colombia";
+import { db, isUniqueConstraintError } from "@/lib/db";
+import { uploadOrganizationLogo } from "@/lib/storage/azure";
+import { addBusinessDays, businessDayStart } from "@/lib/time/business-day";
+
+const MAX_RECURRING_OCCURRENCES = 52;
 
 const createVenueSchema = z.object({
   orgSlug: z.string().min(1),
@@ -221,9 +231,94 @@ export async function updateOrganizationSettings(formData: FormData): Promise<vo
   redirect(`/${parsed.data.orgSlug}/admin/configuracion`);
 }
 
+const MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+
+const updateLogoSchema = z.object({
+  orgSlug: z.string().min(1),
+});
+
+export async function updateOrganizationLogo(formData: FormData): Promise<void> {
+  const parsed = updateLogoSchema.safeParse({ orgSlug: formData.get("orgSlug") });
+  if (!parsed.success) {
+    notFound();
+  }
+
+  const { orgSlug } = parsed.data;
+
+  await requireAdminSession(orgSlug);
+
+  const file = formData.get("logo");
+  if (!(file instanceof File) || file.size === 0) {
+    redirect(`/${orgSlug}/admin/configuracion?error=logo_requerido`);
+  }
+
+  if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+    redirect(`/${orgSlug}/admin/configuracion?error=logo_formato_invalido`);
+  }
+
+  if (file.size > MAX_LOGO_SIZE_BYTES) {
+    redirect(`/${orgSlug}/admin/configuracion?error=logo_muy_grande`);
+  }
+
+  const logoUrl = await uploadOrganizationLogo(orgSlug, file as File);
+
+  await db.organization.update({
+    where: { slug: orgSlug },
+    data: { logoUrl },
+  });
+
+  redirect(`/${orgSlug}/admin/configuracion?logo=actualizado`);
+}
+
+const updateLocationSchema = z.object({
+  orgSlug: z.string().min(1),
+  department: z.string().min(1),
+  municipality: z.string().min(1),
+});
+
+export async function updateOrganizationLocation(formData: FormData): Promise<void> {
+  const parsed = updateLocationSchema.safeParse({
+    orgSlug: formData.get("orgSlug"),
+    department: formData.get("department"),
+    municipality: formData.get("municipality"),
+  });
+  if (!parsed.success) {
+    notFound();
+  }
+
+  const { orgSlug, department, municipality } = parsed.data;
+
+  await requireAdminSession(orgSlug);
+
+  if (!isValidMunicipio(department, municipality)) {
+    redirect(`/${orgSlug}/admin/configuracion?error=ubicacion_invalida`);
+  }
+
+  await db.organization.update({
+    where: { slug: orgSlug },
+    data: { department, municipality },
+  });
+
+  redirect(`/${orgSlug}/admin/configuracion?ubicacion=actualizada`);
+}
+
+const optionalDateOrEmpty = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .or(z.literal(""))
+  .optional();
+
 const cancelBookingSchema = z.object({
   orgSlug: z.string().min(1),
   bookingId: z.string().min(1),
+  dateFrom: optionalDateOrEmpty,
+  dateTo: optionalDateOrEmpty,
+  venueId: z.string().min(1).optional(),
+  type: z.string().min(1).optional(),
+  status: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+  phone: z.string().min(1).optional(),
 });
 
 // negocio.md §6.4: "Cancelar reserva confirmada" — el empleado no puede, solo el ADMIN.
@@ -231,6 +326,13 @@ export async function cancelConfirmedBooking(formData: FormData): Promise<void> 
   const parsed = cancelBookingSchema.safeParse({
     orgSlug: formData.get("orgSlug"),
     bookingId: formData.get("bookingId"),
+    dateFrom: formData.get("dateFrom") ?? undefined,
+    dateTo: formData.get("dateTo") ?? undefined,
+    venueId: formData.get("venueId") ?? undefined,
+    type: formData.get("type") ?? undefined,
+    status: formData.get("status") ?? undefined,
+    name: formData.get("name") ?? undefined,
+    phone: formData.get("phone") ?? undefined,
   });
   if (!parsed.success) {
     notFound();
@@ -248,7 +350,144 @@ export async function cancelConfirmedBooking(formData: FormData): Promise<void> 
     data: { status: BookingStatus.CANCELADA, blockingSlotKey: computeReleasedSlotKey(booking.id) },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/reservas`);
+  // Vuelve a la lista preservando los filtros que el admin tenía activos (rango de fechas, cancha,
+  // tipo, estado) en vez de resetear siempre a "hoy sin filtros". dateFrom/dateTo se preservan
+  // aunque vengan vacíos ("" = sin límite en ese extremo) para no perder un "todas las fechas".
+  const query = new URLSearchParams();
+  if (parsed.data.dateFrom !== undefined) {
+    query.set("dateFrom", parsed.data.dateFrom);
+  }
+  if (parsed.data.dateTo !== undefined) {
+    query.set("dateTo", parsed.data.dateTo);
+  }
+  if (parsed.data.venueId) {
+    query.set("venueId", parsed.data.venueId);
+  }
+  if (parsed.data.type) {
+    query.set("type", parsed.data.type);
+  }
+  if (parsed.data.status) {
+    query.set("status", parsed.data.status);
+  }
+  if (parsed.data.name) {
+    query.set("name", parsed.data.name);
+  }
+  if (parsed.data.phone) {
+    query.set("phone", parsed.data.phone);
+  }
+  const queryString = query.toString();
+  redirect(`/${parsed.data.orgSlug}/admin/reservas${queryString ? `?${queryString}` : ""}`);
+}
+
+const createRecurringBookingSchema = z.object({
+  orgSlug: z.string().min(1),
+  venueId: z.string().min(1),
+  customerName: z.string().trim().min(2).max(200),
+  customerPhone: z.string().trim().min(7).max(50),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+});
+
+// Todas las fechas semanales entre startDate y endDate (ambas inclusive), comparadas como string
+// "YYYY-MM-DD" — es válido porque ambas tienen el mismo formato de ancho fijo.
+function buildWeeklyOccurrenceDates(startDate: string, endDate: string): string[] {
+  const dates: string[] = [];
+  let current = startDate;
+  while (current <= endDate) {
+    dates.push(current);
+    current = addBusinessDays(current, 7);
+  }
+  return dates;
+}
+
+// Crea una reserva recurrente semanal (ej. "cliente fijo todos los martes 6pm"): el admin la
+// confirma directo, sin abono ni paso de pago (negocio.md — clientes fijos pagan en cancha como
+// siempre). Genera de una sola vez todas las ocurrencias entre startDate y endDate; si cualquiera
+// choca con un turno ya ocupado, no crea nada de la serie (el admin debe resolver el conflicto
+// primero, ver decisión de producto).
+export async function createRecurringBooking(formData: FormData): Promise<void> {
+  const parsed = createRecurringBookingSchema.safeParse({
+    orgSlug: formData.get("orgSlug"),
+    venueId: formData.get("venueId"),
+    customerName: formData.get("customerName"),
+    customerPhone: formData.get("customerPhone"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+    startTime: formData.get("startTime"),
+    endTime: formData.get("endTime"),
+  });
+  if (!parsed.success) {
+    notFound();
+  }
+
+  const { orgSlug, venueId, customerName, customerPhone, startDate, endDate, startTime, endTime } = parsed.data;
+
+  await requireAdminSession(orgSlug);
+
+  if (endDate < startDate) {
+    redirect(`/${orgSlug}/admin/reservas?error=recurrente_rango_invalido`);
+  }
+
+  const occurrenceDates = buildWeeklyOccurrenceDates(startDate, endDate);
+  if (occurrenceDates.length > MAX_RECURRING_OCCURRENCES) {
+    redirect(`/${orgSlug}/admin/reservas?error=recurrente_demasiadas_ocurrencias`);
+  }
+
+  const org = await db.organization.findUnique({ where: { slug: orgSlug } });
+  if (!org) {
+    notFound();
+  }
+
+  const venue = await db.venue.findUnique({ where: { id: venueId } });
+  if (!venue || venue.orgId !== org.id || !venue.active) {
+    notFound();
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      const series = await tx.recurringBooking.create({
+        data: {
+          orgId: org.id,
+          venueId: venue.id,
+          customerName,
+          customerPhone,
+          startTime,
+          endTime,
+          startDate: businessDayStart(startDate),
+          endDate: businessDayStart(endDate),
+        },
+      });
+
+      for (const dateIso of occurrenceDates) {
+        const dateObj = businessDayStart(dateIso);
+        await tx.booking.create({
+          data: {
+            orgId: org.id,
+            venueId: venue.id,
+            recurringBookingId: series.id,
+            customerName,
+            customerPhone,
+            date: dateObj,
+            startTime,
+            endTime,
+            status: BookingStatus.CONFIRMADA,
+            blockingSlotKey: computeBlockingSlotKey(venue.id, dateObj, startTime),
+            totalAmount: venue.hourlyRate,
+            depositAmount: 0,
+          },
+        });
+      }
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      redirect(`/${orgSlug}/admin/reservas?error=recurrente_cupo_no_disponible`);
+    }
+    throw error;
+  }
+
+  redirect(`/${orgSlug}/admin/reservas?dateFrom=${startDate}&dateTo=${startDate}&recurrente=creada`);
 }
 
 const createUserSchema = z.object({
