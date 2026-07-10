@@ -84,7 +84,6 @@ export async function submitBlindCount(formData: FormData): Promise<void> {
 }
 
 const shiftIdSchema = z.object({
-  orgSlug: z.string().min(1),
   shiftId: z.string().min(1),
 });
 
@@ -97,7 +96,6 @@ const adjustSchema = shiftIdSchema.extend({
 // auditoría inmutable (se agrega una entrada nueva, nunca se sobrescribe una anterior).
 export async function adjustCashShift(formData: FormData): Promise<void> {
   const parsed = adjustSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     shiftId: formData.get("shiftId"),
     newCountedCash: formData.get("newCountedCash"),
     reason: formData.get("reason"),
@@ -106,7 +104,7 @@ export async function adjustCashShift(formData: FormData): Promise<void> {
     notFound();
   }
 
-  const session = await requireAdminSession(parsed.data.orgSlug);
+  const { session } = await requireAdminSession();
 
   const shift = await db.cashShift.findUnique({ where: { id: parsed.data.shiftId } });
   if (!shift || shift.status !== "EN_DISPUTA" || shift.expectedCash === null) {
@@ -132,19 +130,18 @@ export async function adjustCashShift(formData: FormData): Promise<void> {
     },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/caja/${shift.id}`);
+  redirect(`/admin/caja/${shift.id}`);
 }
 
 export async function resolveDispute(formData: FormData): Promise<void> {
   const parsed = shiftIdSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     shiftId: formData.get("shiftId"),
   });
   if (!parsed.success) {
     notFound();
   }
 
-  const session = await requireAdminSession(parsed.data.orgSlug);
+  const { session } = await requireAdminSession();
 
   const shift = await db.cashShift.findUnique({ where: { id: parsed.data.shiftId } });
   if (!shift || shift.status !== "EN_DISPUTA") {
@@ -160,5 +157,5 @@ export async function resolveDispute(formData: FormData): Promise<void> {
     },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/caja`);
+  redirect("/admin/caja");
 }

@@ -4,8 +4,8 @@ import { BookingStatus } from "./state-machine";
 
 // MVP: horario fijo de operación. Cuando haya un panel de administración (Fase 4), esto pasa a ser
 // configuración por Organization en vez de una constante.
-const OPENING_HOUR = 8;
-const CLOSING_HOUR = 23;
+export const OPENING_HOUR = 8;
+export const CLOSING_HOUR = 23;
 
 export interface HourSlot {
   startTime: string;

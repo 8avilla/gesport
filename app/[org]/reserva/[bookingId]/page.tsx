@@ -6,13 +6,14 @@ import { buildCheckoutPayload, isBoldConfigured } from "@/lib/payments/bold";
 import { uploadManualReceipt } from "@/lib/booking/actions";
 import { BookingStatus } from "@/lib/booking/state-machine";
 import { formatBusinessDayLabel } from "@/lib/time/business-day";
-import { ORG_MAPS_LINK } from "@/lib/org/maps";
+import { getOrgMapsLink } from "@/lib/org/maps";
 import { SubmitButton } from "@/app/components/SubmitButton";
 import { BoldButton } from "@/app/components/BoldButton";
 import { VenueSummaryCard } from "@/app/components/VenueSummaryCard";
 import { ShareWhatsAppButton } from "@/app/components/ShareWhatsAppButton";
 import { QueryToast } from "@/app/components/QueryToast";
 import { StatusWatcher } from "./StatusWatcher";
+import { Footer } from "@/app/components/Footer";
 
 const ERROR_MESSAGES: Record<string, string> = {
   comprobante_requerido: "Debes adjuntar el comprobante de pago.",
@@ -66,7 +67,8 @@ export default async function ReservaPage({
     booking.status === BookingStatus.PENDIENTE_PAGO && !booking.receiptUrl && !boldTxStatus;
 
   return (
-    <main className="mx-auto max-w-md px-4 py-6">
+    <>
+      <main className="mx-auto max-w-md px-4 py-6 lg:max-w-2xl">
       <h1 className="text-center text-lg font-semibold text-gray-900">Tu reserva</h1>
 
       <div className="mt-4">
@@ -78,7 +80,7 @@ export default async function ReservaPage({
             month={month}
             startTime={booking.startTime}
             endTime={booking.endTime}
-            mapsLink={ORG_MAPS_LINK[orgSlug]}
+            mapsLink={getOrgMapsLink(organization)}
           />
         )}
       </div>
@@ -116,7 +118,7 @@ export default async function ReservaPage({
               <span className="text-gray-900">${remainder.toLocaleString("es-CO")}</span>
             </div>
             {booking.boldPaymentRef && (
-              <p className="mt-3 text-xs text-gray-400">Referencia de pago: {booking.boldPaymentRef}</p>
+              <p className="mt-3 text-xs text-gray-500">Referencia de pago: {booking.boldPaymentRef}</p>
             )}
           </div>
 
@@ -144,7 +146,7 @@ export default async function ReservaPage({
           </div>
           <Link
             href={`/${orgSlug}/${booking.venueId}`}
-            className="mt-4 block rounded-md bg-emerald-600 px-4 py-3 text-center text-sm font-medium text-white hover:bg-emerald-700"
+            className="mt-4 block rounded-md bg-emerald-700 px-4 py-3 text-center text-sm font-medium text-white hover:bg-emerald-800"
           >
             Elegir otro horario
           </Link>
@@ -203,6 +205,7 @@ export default async function ReservaPage({
                   description: `Abono reserva ${venue?.name ?? ""} ${dateIso}`,
                   redirectionUrl: `${await getBaseUrl()}/${orgSlug}/reserva/${booking.id}`,
                 })}
+                label="🔒 Pagar abono y confirmar reserva"
               />
               <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-gray-500">
                 🔒 Pago 100% seguro con Bold
@@ -227,7 +230,7 @@ export default async function ReservaPage({
               />
               <SubmitButton
                 pendingLabel="Subiendo…"
-                className="rounded-md bg-emerald-600 px-4 py-3 font-medium text-white hover:bg-emerald-700"
+                className="rounded-md bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
               >
                 Subir comprobante
               </SubmitButton>
@@ -262,6 +265,8 @@ export default async function ReservaPage({
       {booking.status === BookingStatus.PENDIENTE_PAGO && (
         <StatusWatcher orgSlug={orgSlug} bookingId={booking.id} currentStatus={booking.status} />
       )}
-    </main>
+      </main>
+      <Footer />
+    </>
   );
 }

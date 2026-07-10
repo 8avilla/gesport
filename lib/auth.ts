@@ -38,6 +38,16 @@ export const {
           return null;
         }
 
+        // SUPERADMIN no pertenece a ninguna organización (User.orgId es null para ese rol) — el
+        // resto de roles sí, y si la organización fue borrada, el login falla en vez de dejar
+        // pasar una sesión sin tenant válido.
+        if (!user.orgId) {
+          if (user.role !== "SUPERADMIN") {
+            return null;
+          }
+          return { id: user.id, name: user.name, email: user.email, role: user.role };
+        }
+
         const organization = await db.organization.findUnique({ where: { id: user.orgId } });
         if (!organization) {
           return null;

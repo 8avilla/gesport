@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireStaffSession } from "@/lib/auth/session-guards";
 import { addConsumptionItem, closeAccount } from "@/lib/pos/actions";
 import { BookingStatus } from "@/lib/booking/state-machine";
 
@@ -11,10 +11,7 @@ export default async function CuentaPage({
 }) {
   const { org: orgSlug, bookingId } = await params;
 
-  const session = await auth();
-  if (!session?.user || session.user.orgSlug !== orgSlug) {
-    notFound();
-  }
+  await requireStaffSession(orgSlug);
 
   const organization = await db.organization.findUnique({ where: { slug: orgSlug } });
   if (!organization) {

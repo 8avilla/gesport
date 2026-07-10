@@ -1,16 +1,13 @@
 import { notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireStaffSession } from "@/lib/auth/session-guards";
 import { getOpenShift } from "@/lib/pos/queries";
 import { submitBlindCount } from "@/lib/cash/actions";
 
 export default async function SolicitarCierrePage({ params }: { params: Promise<{ org: string }> }) {
   const { org: orgSlug } = await params;
 
-  const session = await auth();
-  if (!session?.user || session.user.orgSlug !== orgSlug) {
-    notFound();
-  }
+  await requireStaffSession(orgSlug);
 
   const organization = await db.organization.findUnique({ where: { slug: orgSlug } });
   if (!organization) {

@@ -51,6 +51,32 @@ export async function getDashboardMetrics(orgId: string): Promise<DashboardMetri
   };
 }
 
+export interface AdminAlertCounts {
+  lowStockCount: number;
+  pendingPaymentCount: number;
+}
+
+// Conteo liviano para el badge de notificaciones de la topbar (se corre en cada página del admin,
+// vía el layout compartido) — separado de getDashboardMetrics porque ese trae TODAS las reservas
+// de hoy con sus montos, más de lo que hace falta solo para un número en una campanita.
+export async function getAdminAlertCounts(orgId: string): Promise<AdminAlertCounts> {
+  const { start, end } = businessDayRange(todayBusinessDate());
+
+  const [products, pendingPaymentCount] = await Promise.all([
+    db.consumptionItem.findMany({
+      where: { orgId, active: true },
+      select: { stock: true, lowStockThreshold: true },
+    }),
+    db.booking.count({
+      where: { orgId, date: { gte: start, lt: end }, status: BookingStatus.PENDIENTE_PAGO },
+    }),
+  ]);
+
+  const lowStockCount = products.filter((product) => product.stock < product.lowStockThreshold).length;
+
+  return { lowStockCount, pendingPaymentCount };
+}
+
 export interface DailyRevenue {
   date: string;
   courtsTotal: number;

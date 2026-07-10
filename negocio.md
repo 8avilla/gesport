@@ -1,12 +1,12 @@
-# SportArena — Arquitectura Operativa y Funcional
+# Cancha Libre — Arquitectura Operativa y Funcional
 
-Este documento describe la arquitectura operativa y funcional de SportArena. Explica detalladamente cómo
+Este documento describe la arquitectura operativa y funcional de Cancha Libre. Explica detalladamente cómo
 interactúan los administradores, empleados de turno y clientes finales con la plataforma para erradicar las
 fugas de dinero, automatizar las reservas y blindar los cierres de caja.
 
 ## 1. Arquitectura General del Ecosistema
 
-SportArena opera como un ecosistema híbrido en la nube compuesto por tres módulos sincronizados en tiempo real:
+Cancha Libre opera como un ecosistema híbrido en la nube compuesto por tres módulos sincronizados en tiempo real:
 
 - **Panel del Administrador / Dueño (Web & Móvil)**: Control total de métricas, auditorías de caja, gestión
   de inventarios y visualización de reportes desde cualquier lugar.
@@ -35,7 +35,7 @@ Este módulo elimina la dependencia telefónica del administrador y el riesgo de
 
 ## 3. Flujo del Módulo 2: Punto de Venta (POS) Integrado a Canchas
 
-Para detener las pérdidas en la venta de productos e implementación, SportArena utiliza un modelo de
+Para detener las pérdidas en la venta de productos e implementación, Cancha Libre utiliza un modelo de
 cuentas de consumo vinculadas a la reserva activa.
 
 | Fase Operativa | Acción en el Sistema (Empleado de Turno) | Efecto de Control Administrativo (Dueño) |
@@ -47,7 +47,7 @@ cuentas de consumo vinculadas a la reserva activa.
 
 ## 4. Flujo del Módulo 3: Cierre de Caja Blindado y Automatizado
 
-El proceso de cuadre nocturno de SportArena está diseñado para erradicar las auditorías manuales y las
+El proceso de cuadre nocturno de Cancha Libre está diseñado para erradicar las auditorías manuales y las
 alteraciones de los empleados en la entrega de turnos.
 
 **Algoritmo de Conciliación Automática:**
@@ -152,4 +152,4 @@ pero necesita una vía de corrección para errores humanos genuinos (mal conteo,
    hasta entonces permanece visible en el panel como pendiente.
 
 ---
-SportArena © 2026 — Confidencial Operativo
+Cancha Libre © 2026 — Confidencial Operativo

@@ -31,7 +31,7 @@ export function DaySelector({
             aria-selected={isSelected}
             className={`flex min-w-14 flex-shrink-0 flex-col items-center rounded-xl border px-3 py-2 text-center transition-colors ${
               isSelected
-                ? "border-emerald-600 bg-emerald-600 text-white"
+                ? "border-emerald-600 bg-emerald-700 text-white"
                 : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300"
             }`}
           >

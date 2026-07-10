@@ -17,8 +17,18 @@ import { addBusinessDays, businessDayStart } from "@/lib/time/business-day";
 
 const MAX_RECURRING_OCCURRENCES = 52;
 
+// Resuelve el orgId real a partir del slug de la URL en vez de confiar en session.user.orgId — ese
+// campo es undefined para SUPERADMIN (no pertenece a ninguna organización, pero sí puede operar
+// sobre cualquiera vía requireAdminSession).
+async function resolveOrgId(orgSlug: string): Promise<string> {
+  const org = await db.organization.findUnique({ where: { slug: orgSlug }, select: { id: true } });
+  if (!org) {
+    notFound();
+  }
+  return org.id;
+}
+
 const createVenueSchema = z.object({
-  orgSlug: z.string().min(1),
   name: z.string().trim().min(2),
   type: z.enum(["FUTBOL_5", "FUTBOL_8", "PADEL"]),
   hourlyRate: z.coerce.number().int().min(0),
@@ -26,7 +36,6 @@ const createVenueSchema = z.object({
 
 export async function createVenue(formData: FormData): Promise<void> {
   const parsed = createVenueSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     name: formData.get("name"),
     type: formData.get("type"),
     hourlyRate: formData.get("hourlyRate"),
@@ -35,9 +44,9 @@ export async function createVenue(formData: FormData): Promise<void> {
     notFound();
   }
 
-  await requireAdminSession(parsed.data.orgSlug);
+  const { orgSlug } = await requireAdminSession();
 
-  const org = await db.organization.findUnique({ where: { slug: parsed.data.orgSlug } });
+  const org = await db.organization.findUnique({ where: { slug: orgSlug } });
   if (!org) {
     notFound();
   }
@@ -51,7 +60,7 @@ export async function createVenue(formData: FormData): Promise<void> {
     },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/canchas`);
+  redirect("/admin/canchas");
 }
 
 const urlLines = z.string().transform((value) =>
@@ -62,7 +71,6 @@ const urlLines = z.string().transform((value) =>
 );
 
 const updateVenueSchema = z.object({
-  orgSlug: z.string().min(1),
   venueId: z.string().min(1),
   hourlyRate: z.coerce.number().int().min(0),
   imageUrls: urlLines.pipe(z.array(z.string().url())),
@@ -74,7 +82,6 @@ const updateVenueSchema = z.object({
 
 export async function updateVenue(formData: FormData): Promise<void> {
   const parsed = updateVenueSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     venueId: formData.get("venueId"),
     hourlyRate: formData.get("hourlyRate"),
     imageUrls: formData.get("imageUrls") ?? "",
@@ -85,7 +92,7 @@ export async function updateVenue(formData: FormData): Promise<void> {
     notFound();
   }
 
-  await requireAdminSession(parsed.data.orgSlug);
+  await requireAdminSession();
 
   await db.venue.update({
     where: { id: parsed.data.venueId },
@@ -97,11 +104,10 @@ export async function updateVenue(formData: FormData): Promise<void> {
     },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/canchas`);
+  redirect("/admin/canchas");
 }
 
 const createProductSchema = z.object({
-  orgSlug: z.string().min(1),
   name: z.string().trim().min(2),
   price: z.coerce.number().int().min(0),
   stock: z.coerce.number().int().min(0),
@@ -110,7 +116,6 @@ const createProductSchema = z.object({
 
 export async function createProduct(formData: FormData): Promise<void> {
   const parsed = createProductSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     name: formData.get("name"),
     price: formData.get("price"),
     stock: formData.get("stock"),
@@ -120,9 +125,9 @@ export async function createProduct(formData: FormData): Promise<void> {
     notFound();
   }
 
-  await requireAdminSession(parsed.data.orgSlug);
+  const { orgSlug } = await requireAdminSession();
 
-  const org = await db.organization.findUnique({ where: { slug: parsed.data.orgSlug } });
+  const org = await db.organization.findUnique({ where: { slug: orgSlug } });
   if (!org) {
     notFound();
   }
@@ -137,11 +142,10 @@ export async function createProduct(formData: FormData): Promise<void> {
     },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/inventario`);
+  redirect("/admin/inventario");
 }
 
 const updateProductSchema = z.object({
-  orgSlug: z.string().min(1),
   productId: z.string().min(1),
   price: z.coerce.number().int().min(0),
   lowStockThreshold: z.coerce.number().int().min(0),
@@ -150,7 +154,6 @@ const updateProductSchema = z.object({
 
 export async function updateProduct(formData: FormData): Promise<void> {
   const parsed = updateProductSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     productId: formData.get("productId"),
     price: formData.get("price"),
     lowStockThreshold: formData.get("lowStockThreshold"),
@@ -160,7 +163,7 @@ export async function updateProduct(formData: FormData): Promise<void> {
     notFound();
   }
 
-  await requireAdminSession(parsed.data.orgSlug);
+  await requireAdminSession();
 
   await db.consumptionItem.update({
     where: { id: parsed.data.productId },
@@ -171,11 +174,10 @@ export async function updateProduct(formData: FormData): Promise<void> {
     },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/inventario`);
+  redirect("/admin/inventario");
 }
 
 const adjustStockSchema = z.object({
-  orgSlug: z.string().min(1),
   productId: z.string().min(1),
   delta: z.coerce.number().int(),
 });
@@ -183,7 +185,6 @@ const adjustStockSchema = z.object({
 // Entrada (o corrección) de almacén — negocio.md §6.4: "Ajustar inventario" es exclusivo de ADMIN.
 export async function adjustStock(formData: FormData): Promise<void> {
   const parsed = adjustStockSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     productId: formData.get("productId"),
     delta: formData.get("delta"),
   });
@@ -191,7 +192,7 @@ export async function adjustStock(formData: FormData): Promise<void> {
     notFound();
   }
 
-  await requireAdminSession(parsed.data.orgSlug);
+  await requireAdminSession();
 
   const product = await db.consumptionItem.findUnique({ where: { id: parsed.data.productId } });
   if (!product) {
@@ -205,11 +206,10 @@ export async function adjustStock(formData: FormData): Promise<void> {
     data: { stock: newStock },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/inventario`);
+  redirect("/admin/inventario");
 }
 
 const settingsSchema = z.object({
-  orgSlug: z.string().min(1),
   depositPercentage: z.coerce.number().int().min(1).max(100),
   cancellationWindowHours: z.coerce.number().int().min(0),
   bookingHoldMinutes: z.coerce.number().int().min(1),
@@ -217,7 +217,6 @@ const settingsSchema = z.object({
 
 export async function updateOrganizationSettings(formData: FormData): Promise<void> {
   const parsed = settingsSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     depositPercentage: formData.get("depositPercentage"),
     cancellationWindowHours: formData.get("cancellationWindowHours"),
     bookingHoldMinutes: formData.get("bookingHoldMinutes"),
@@ -226,10 +225,10 @@ export async function updateOrganizationSettings(formData: FormData): Promise<vo
     notFound();
   }
 
-  await requireAdminSession(parsed.data.orgSlug);
+  const { orgSlug } = await requireAdminSession();
 
   await db.organization.update({
-    where: { slug: parsed.data.orgSlug },
+    where: { slug: orgSlug },
     data: {
       depositPercentage: parsed.data.depositPercentage,
       cancellationWindowHours: parsed.data.cancellationWindowHours,
@@ -237,37 +236,26 @@ export async function updateOrganizationSettings(formData: FormData): Promise<vo
     },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/configuracion`);
+  redirect("/admin/configuracion");
 }
 
 const MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
 
-const updateLogoSchema = z.object({
-  orgSlug: z.string().min(1),
-});
-
 export async function updateOrganizationLogo(formData: FormData): Promise<void> {
-  const parsed = updateLogoSchema.safeParse({ orgSlug: formData.get("orgSlug") });
-  if (!parsed.success) {
-    notFound();
-  }
-
-  const { orgSlug } = parsed.data;
-
-  await requireAdminSession(orgSlug);
+  const { orgSlug } = await requireAdminSession();
 
   const file = formData.get("logo");
   if (!(file instanceof File) || file.size === 0) {
-    redirect(`/${orgSlug}/admin/configuracion?error=logo_requerido`);
+    redirect("/admin/configuracion?error=logo_requerido");
   }
 
   if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
-    redirect(`/${orgSlug}/admin/configuracion?error=logo_formato_invalido`);
+    redirect("/admin/configuracion?error=logo_formato_invalido");
   }
 
   if (file.size > MAX_LOGO_SIZE_BYTES) {
-    redirect(`/${orgSlug}/admin/configuracion?error=logo_muy_grande`);
+    redirect("/admin/configuracion?error=logo_muy_grande");
   }
 
   const logoUrl = await uploadOrganizationLogo(orgSlug, file as File);
@@ -277,39 +265,43 @@ export async function updateOrganizationLogo(formData: FormData): Promise<void> 
     data: { logoUrl },
   });
 
-  redirect(`/${orgSlug}/admin/configuracion?logo=actualizado`);
+  redirect("/admin/configuracion?logo=actualizado");
 }
 
 const updateLocationSchema = z.object({
-  orgSlug: z.string().min(1),
   department: z.string().min(1),
   municipality: z.string().min(1),
+  // Punto exacto del complejo en el mapa (LocationMapPicker) — separado de departamento/municipio,
+  // que solo describen la región. Sin esto no hay pin que mostrar en el buscador principal.
+  latitude: z.coerce.number().min(-90).max(90),
+  longitude: z.coerce.number().min(-180).max(180),
 });
 
 export async function updateOrganizationLocation(formData: FormData): Promise<void> {
   const parsed = updateLocationSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     department: formData.get("department"),
     municipality: formData.get("municipality"),
+    latitude: formData.get("latitude"),
+    longitude: formData.get("longitude"),
   });
   if (!parsed.success) {
-    notFound();
+    redirect("/admin/configuracion?error=ubicacion_invalida");
   }
 
-  const { orgSlug, department, municipality } = parsed.data;
+  const { department, municipality, latitude, longitude } = parsed.data;
 
-  await requireAdminSession(orgSlug);
+  const { orgSlug } = await requireAdminSession();
 
   if (!isValidMunicipio(department, municipality)) {
-    redirect(`/${orgSlug}/admin/configuracion?error=ubicacion_invalida`);
+    redirect("/admin/configuracion?error=ubicacion_invalida");
   }
 
   await db.organization.update({
     where: { slug: orgSlug },
-    data: { department, municipality },
+    data: { department, municipality, latitude, longitude },
   });
 
-  redirect(`/${orgSlug}/admin/configuracion?ubicacion=actualizada`);
+  redirect("/admin/configuracion?ubicacion=actualizada");
 }
 
 const optionalDateOrEmpty = z
@@ -319,7 +311,6 @@ const optionalDateOrEmpty = z
   .optional();
 
 const cancelBookingSchema = z.object({
-  orgSlug: z.string().min(1),
   bookingId: z.string().min(1),
   dateFrom: optionalDateOrEmpty,
   dateTo: optionalDateOrEmpty,
@@ -333,7 +324,6 @@ const cancelBookingSchema = z.object({
 // negocio.md §6.4: "Cancelar reserva confirmada" — el empleado no puede, solo el ADMIN.
 export async function cancelConfirmedBooking(formData: FormData): Promise<void> {
   const parsed = cancelBookingSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     bookingId: formData.get("bookingId"),
     dateFrom: formData.get("dateFrom") ?? undefined,
     dateTo: formData.get("dateTo") ?? undefined,
@@ -347,7 +337,7 @@ export async function cancelConfirmedBooking(formData: FormData): Promise<void> 
     notFound();
   }
 
-  await requireAdminSession(parsed.data.orgSlug);
+  await requireAdminSession();
 
   const booking = await db.booking.findUnique({ where: { id: parsed.data.bookingId } });
   if (!booking || !canTransition(booking.status, BookingStatus.CANCELADA)) {
@@ -385,11 +375,10 @@ export async function cancelConfirmedBooking(formData: FormData): Promise<void> 
     query.set("phone", parsed.data.phone);
   }
   const queryString = query.toString();
-  redirect(`/${parsed.data.orgSlug}/admin/reservas${queryString ? `?${queryString}` : ""}`);
+  redirect(`/admin/reservas${queryString ? `?${queryString}` : ""}`);
 }
 
 const createRecurringBookingSchema = z.object({
-  orgSlug: z.string().min(1),
   venueId: z.string().min(1),
   customerName: z.string().trim().min(2).max(200),
   customerPhone: z.string().trim().min(7).max(50),
@@ -420,7 +409,6 @@ function buildWeeklyOccurrenceDates(startDate: string, endDate: string): string[
 // de la serie (el admin debe resolver el conflicto primero, ver decisión de producto).
 export async function createRecurringBooking(formData: FormData): Promise<void> {
   const parsed = createRecurringBookingSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     venueId: formData.get("venueId"),
     customerName: formData.get("customerName"),
     customerPhone: formData.get("customerPhone"),
@@ -434,18 +422,18 @@ export async function createRecurringBooking(formData: FormData): Promise<void> 
     notFound();
   }
 
-  const { orgSlug, venueId, customerName, customerPhone, startDate, endDate, startTime, endTime, requiresDeposit } =
+  const { venueId, customerName, customerPhone, startDate, endDate, startTime, endTime, requiresDeposit } =
     parsed.data;
 
-  await requireAdminSession(orgSlug);
+  const { orgSlug } = await requireAdminSession();
 
   if (endDate < startDate) {
-    redirect(`/${orgSlug}/admin/reservas?error=recurrente_rango_invalido`);
+    redirect("/admin/reservas?error=recurrente_rango_invalido");
   }
 
   const occurrenceDates = buildWeeklyOccurrenceDates(startDate, endDate);
   if (occurrenceDates.length > MAX_RECURRING_OCCURRENCES) {
-    redirect(`/${orgSlug}/admin/reservas?error=recurrente_demasiadas_ocurrencias`);
+    redirect("/admin/reservas?error=recurrente_demasiadas_ocurrencias");
   }
 
   const org = await db.organization.findUnique({ where: { slug: orgSlug } });
@@ -497,16 +485,15 @@ export async function createRecurringBooking(formData: FormData): Promise<void> 
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
-      redirect(`/${orgSlug}/admin/reservas?error=recurrente_cupo_no_disponible`);
+      redirect("/admin/reservas?error=recurrente_cupo_no_disponible");
     }
     throw error;
   }
 
-  redirect(`/${orgSlug}/admin/reservas?dateFrom=${startDate}&dateTo=${startDate}&recurrente=creada`);
+  redirect(`/admin/reservas?dateFrom=${startDate}&dateTo=${startDate}&recurrente=creada`);
 }
 
 const createUserSchema = z.object({
-  orgSlug: z.string().min(1),
   name: z.string().trim().min(2),
   email: z.string().trim().email(),
   password: z.string().min(8),
@@ -515,26 +502,25 @@ const createUserSchema = z.object({
 
 export async function createUser(formData: FormData): Promise<void> {
   const parsed = createUserSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     name: formData.get("name"),
     email: formData.get("email"),
     password: formData.get("password"),
     role: formData.get("role"),
   });
   if (!parsed.success) {
-    redirect(`/${formData.get("orgSlug")}/admin/usuarios?error=datos_invalidos`);
+    redirect("/admin/usuarios?error=datos_invalidos");
   }
 
-  await requireAdminSession(parsed.data.orgSlug);
+  const { orgSlug } = await requireAdminSession();
 
-  const org = await db.organization.findUnique({ where: { slug: parsed.data.orgSlug } });
+  const org = await db.organization.findUnique({ where: { slug: orgSlug } });
   if (!org) {
     notFound();
   }
 
   const existing = await db.user.findUnique({ where: { email: parsed.data.email } });
   if (existing) {
-    redirect(`/${parsed.data.orgSlug}/admin/usuarios?error=email_en_uso`);
+    redirect("/admin/usuarios?error=email_en_uso");
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
@@ -549,11 +535,10 @@ export async function createUser(formData: FormData): Promise<void> {
     },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/usuarios`);
+  redirect("/admin/usuarios");
 }
 
 const updateUserSchema = z.object({
-  orgSlug: z.string().min(1),
   userId: z.string().min(1),
   role: z.enum(["ADMIN", "EMPLOYEE"]),
   active: z.enum(["true", "false"]),
@@ -561,7 +546,6 @@ const updateUserSchema = z.object({
 
 export async function updateUser(formData: FormData): Promise<void> {
   const parsed = updateUserSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     userId: formData.get("userId"),
     role: formData.get("role"),
     active: formData.get("active"),
@@ -570,16 +554,17 @@ export async function updateUser(formData: FormData): Promise<void> {
     notFound();
   }
 
-  const session = await requireAdminSession(parsed.data.orgSlug);
+  const { session, orgSlug } = await requireAdminSession();
 
   // Un admin no puede quitarse a sí mismo el rol ni desactivar su propia cuenta — evita que la
   // organización se quede sin nadie que pueda entrar al panel.
   if (parsed.data.userId === session.user.id && (parsed.data.role !== "ADMIN" || parsed.data.active !== "true")) {
-    redirect(`/${parsed.data.orgSlug}/admin/usuarios?error=no_autogestion`);
+    redirect("/admin/usuarios?error=no_autogestion");
   }
 
+  const orgId = await resolveOrgId(orgSlug);
   const user = await db.user.findUnique({ where: { id: parsed.data.userId } });
-  if (!user || user.orgId !== session.user.orgId) {
+  if (!user || user.orgId !== orgId) {
     notFound();
   }
 
@@ -588,29 +573,28 @@ export async function updateUser(formData: FormData): Promise<void> {
     data: { role: parsed.data.role, active: parsed.data.active === "true" },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/usuarios`);
+  redirect("/admin/usuarios");
 }
 
 const resetPasswordSchema = z.object({
-  orgSlug: z.string().min(1),
   userId: z.string().min(1),
   newPassword: z.string().min(8),
 });
 
 export async function resetUserPassword(formData: FormData): Promise<void> {
   const parsed = resetPasswordSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     userId: formData.get("userId"),
     newPassword: formData.get("newPassword"),
   });
   if (!parsed.success) {
-    redirect(`/${formData.get("orgSlug")}/admin/usuarios?error=datos_invalidos`);
+    redirect("/admin/usuarios?error=datos_invalidos");
   }
 
-  const session = await requireAdminSession(parsed.data.orgSlug);
+  const { orgSlug } = await requireAdminSession();
 
+  const orgId = await resolveOrgId(orgSlug);
   const user = await db.user.findUnique({ where: { id: parsed.data.userId } });
-  if (!user || user.orgId !== session.user.orgId) {
+  if (!user || user.orgId !== orgId) {
     notFound();
   }
 
@@ -618,11 +602,10 @@ export async function resetUserPassword(formData: FormData): Promise<void> {
 
   await db.user.update({ where: { id: user.id }, data: { passwordHash } });
 
-  redirect(`/${parsed.data.orgSlug}/admin/usuarios?ok=clave_actualizada`);
+  redirect("/admin/usuarios?ok=clave_actualizada");
 }
 
 const blockSlotSchema = z.object({
-  orgSlug: z.string().min(1),
   venueId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
@@ -632,7 +615,6 @@ const blockSlotSchema = z.object({
 // Bloquea un horario por mantenimiento (ej. luces dañadas) sin que exista una reserva real.
 export async function blockSlot(formData: FormData): Promise<void> {
   const parsed = blockSlotSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     venueId: formData.get("venueId"),
     date: formData.get("date"),
     startTime: formData.get("startTime"),
@@ -642,9 +624,9 @@ export async function blockSlot(formData: FormData): Promise<void> {
     notFound();
   }
 
-  await requireAdminSession(parsed.data.orgSlug);
+  const { orgSlug } = await requireAdminSession();
 
-  const org = await db.organization.findUnique({ where: { slug: parsed.data.orgSlug } });
+  const org = await db.organization.findUnique({ where: { slug: orgSlug } });
   if (!org) {
     notFound();
   }
@@ -665,9 +647,7 @@ export async function blockSlot(formData: FormData): Promise<void> {
     },
   });
   if (existingBooking) {
-    redirect(
-      `/${parsed.data.orgSlug}/admin/mantenimiento?venueId=${venue.id}&date=${parsed.data.date}&error=horario_ocupado`,
-    );
+    redirect(`/admin/mantenimiento?venueId=${venue.id}&date=${parsed.data.date}&error=horario_ocupado`);
   }
 
   await db.slotBlock.create({
@@ -680,11 +660,10 @@ export async function blockSlot(formData: FormData): Promise<void> {
     },
   });
 
-  redirect(`/${parsed.data.orgSlug}/admin/mantenimiento?venueId=${venue.id}&date=${parsed.data.date}`);
+  redirect(`/admin/mantenimiento?venueId=${venue.id}&date=${parsed.data.date}`);
 }
 
 const unblockSlotSchema = z.object({
-  orgSlug: z.string().min(1),
   slotBlockId: z.string().min(1),
   venueId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -692,7 +671,6 @@ const unblockSlotSchema = z.object({
 
 export async function unblockSlot(formData: FormData): Promise<void> {
   const parsed = unblockSlotSchema.safeParse({
-    orgSlug: formData.get("orgSlug"),
     slotBlockId: formData.get("slotBlockId"),
     venueId: formData.get("venueId"),
     date: formData.get("date"),
@@ -701,14 +679,15 @@ export async function unblockSlot(formData: FormData): Promise<void> {
     notFound();
   }
 
-  const session = await requireAdminSession(parsed.data.orgSlug);
+  const { orgSlug } = await requireAdminSession();
 
+  const orgId = await resolveOrgId(orgSlug);
   const block = await db.slotBlock.findUnique({ where: { id: parsed.data.slotBlockId } });
-  if (!block || block.orgId !== session.user.orgId) {
+  if (!block || block.orgId !== orgId) {
     notFound();
   }
 
   await db.slotBlock.delete({ where: { id: block.id } });
 
-  redirect(`/${parsed.data.orgSlug}/admin/mantenimiento?venueId=${parsed.data.venueId}&date=${parsed.data.date}`);
+  redirect(`/admin/mantenimiento?venueId=${parsed.data.venueId}&date=${parsed.data.date}`);
 }

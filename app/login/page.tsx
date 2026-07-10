@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { loginAction } from "@/lib/auth-actions";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -14,8 +15,9 @@ export default async function LoginPage({
 
   return (
     <main className="mx-auto max-w-sm px-4 py-16">
-      <h1 className="text-xl font-semibold">Ingreso de personal</h1>
-      <p className="mt-1 text-sm text-gray-500">Recepción y administración de SportArena.</p>
+      <Image src="/logo.png" alt="Cancha Libre" width={1774} height={887} className="h-9 w-auto" priority />
+      <h1 className="mt-6 text-xl font-semibold">Ingreso de personal</h1>
+      <p className="mt-1 text-sm text-gray-500">Recepción y administración de Cancha Libre.</p>
 
       {error && ERROR_MESSAGES[error] && (
         <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-800">{ERROR_MESSAGES[error]}</p>

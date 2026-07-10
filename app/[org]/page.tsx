@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { getNextAvailableSlot } from "@/lib/booking/availability";
 import { todayBusinessDate } from "@/lib/time/business-day";
 import { getVenuePhotos } from "@/lib/venues/photos";
-import { ORG_MAPS_LINK, ORG_MAP_COORDS } from "@/lib/org/maps";
+import { getOrgMapEmbedSrc, getOrgMapsLink } from "@/lib/org/maps";
+import { Footer } from "@/app/components/Footer";
 
 const VENUE_TYPE_LABEL: Record<string, string> = {
   FUTBOL_5: "Fútbol 5",
@@ -33,13 +34,15 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
 
   const today = todayBusinessDate();
   const nextSlots = await Promise.all(venues.map((venue) => getNextAvailableSlot(venue.id)));
-  const mapsLink = ORG_MAPS_LINK[orgSlug];
-  const mapCoords = ORG_MAP_COORDS[orgSlug];
+  const mapsLink = getOrgMapsLink(organization);
+  const mapEmbedSrc = getOrgMapEmbedSrc(organization);
 
   return (
-    <main className="mx-auto max-w-2xl px-4 pb-10">
-      <div className="border-b border-gray-100 bg-gradient-to-b from-emerald-50 to-white px-4 pt-8 pb-6 -mx-4">
-        <div className="flex items-center gap-3">
+    <>
+      <main className="mx-auto max-w-2xl px-4 pb-10 lg:max-w-none lg:px-10 xl:px-16">
+      <div className="border-b border-gray-100 bg-gradient-to-b from-emerald-50 to-white px-4 pt-8 pb-6 -mx-4 lg:-mx-10 lg:px-10 xl:-mx-16 xl:px-16">
+        <div className="mx-auto max-w-3xl">
+          <div className="flex items-center gap-3">
           {organization.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- logo subido por el admin como URL externa
             <img
@@ -48,7 +51,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
               className="h-11 w-11 flex-shrink-0 rounded-full object-cover"
             />
           ) : (
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-emerald-600 text-lg font-semibold text-white">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-emerald-700 text-lg font-semibold text-white">
               {organization.name.charAt(0).toUpperCase()}
             </div>
           )}
@@ -68,7 +71,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
         <h1 className="mt-4 text-2xl font-semibold leading-tight text-gray-900">
           Reserva tu próxima cancha
           <br />
-          <span className="text-emerald-600">en menos de 1 minuto</span>
+          <span className="text-emerald-700">en menos de 1 minuto</span>
         </h1>
 
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
@@ -77,7 +80,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
           <span>✅ Confirmación inmediata</span>
         </div>
 
-        {mapCoords && (
+        {mapEmbedSrc && (
           <a
             href={mapsLink}
             target="_blank"
@@ -85,7 +88,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
             className="relative mt-4 block h-28 overflow-hidden rounded-lg border border-gray-200"
           >
             <iframe
-              src={`https://www.google.com/maps?q=${mapCoords.lat},${mapCoords.lng}&z=15&output=embed`}
+              src={mapEmbedSrc}
               className="pointer-events-none h-full w-full"
               loading="lazy"
               title="Ubicación del complejo"
@@ -93,21 +96,22 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
             <span className="absolute bottom-2 right-2 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-emerald-700 shadow">
               Ver en el mapa
             </span>
-          </a>
-        )}
+            </a>
+          )}
+        </div>
       </div>
 
       <h2 className="mt-6 text-sm font-medium text-gray-700">Elige una cancha</h2>
 
-      <ul className="mt-3 grid gap-4">
+      <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
         {venues.map((venue, index) => {
           const nextSlot = nextSlots[index];
           const isNextSlotToday = nextSlot?.dateIso === today;
           const [coverPhoto] = getVenuePhotos(venue);
 
           return (
-            <li key={venue.id} className="overflow-hidden rounded-xl border border-gray-200">
-              <Link href={`/${organization.slug}/${venue.id}`} className="block">
+            <li key={venue.id} className="overflow-hidden rounded-xl border border-gray-200 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
+              <Link href={`/${organization.slug}/${venue.id}`} className="group block">
                 <div className="relative flex h-36 items-center justify-center bg-gray-100">
                   {coverPhoto ? (
                     // eslint-disable-next-line @next/next/no-img-element -- fotos de canchas vienen de URLs externas arbitrarias que pega el admin
@@ -127,7 +131,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
                       <div className="font-semibold text-gray-900">
                         ${venue.hourlyRate.toLocaleString("es-CO")}
                       </div>
-                      <div className="text-xs text-gray-400">/ hora</div>
+                      <div className="text-xs text-gray-500">/ hora</div>
                     </div>
                   </div>
 
@@ -137,7 +141,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
                     </span>
                   )}
 
-                  <span className="mt-3 flex items-center justify-center gap-1 rounded-md bg-emerald-600 py-2 text-sm font-medium text-white">
+                  <span className="mt-3 flex items-center justify-center gap-1 rounded-md bg-emerald-700 py-2 text-sm font-medium text-white transition-colors group-hover:bg-emerald-800">
                     Ver horarios →
                   </span>
                 </div>
@@ -147,13 +151,15 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
         })}
 
         {venues.length === 0 && (
-          <li className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
+          <li className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500 sm:col-span-2 lg:col-span-full">
             <div className="text-2xl">🏗️</div>
             <p className="mt-2">Todavía no hay canchas configuradas aquí.</p>
-            <p className="text-gray-400">Vuelve pronto 👋</p>
+            <p className="text-gray-500">Vuelve pronto 👋</p>
           </li>
         )}
       </ul>
-    </main>
+      </main>
+      <Footer />
+    </>
   );
 }

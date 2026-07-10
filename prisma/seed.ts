@@ -32,8 +32,8 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10);
   const users = [
-    { name: "Administradora Arena Gol", email: "admin@aremagol.test", role: "ADMIN" as const },
-    { name: "Recepción Turno Día", email: "recepcion@aremagol.test", role: "EMPLOYEE" as const },
+    { name: "Administrador", email: "admin@cunadelgol", role: "ADMIN" as const },
+    { name: "Recepción Turno Día", email: "recepcion@cunadelgol", role: "EMPLOYEE" as const },
   ];
 
   for (const user of users) {
@@ -58,8 +58,21 @@ async function main() {
     }
   }
 
+  await db.user.upsert({
+    where: { email: "superadmin@plataforma.test" },
+    update: {},
+    create: {
+      name: "Superadmin Plataforma",
+      email: "superadmin@plataforma.test",
+      role: "SUPERADMIN",
+      passwordHash,
+    },
+  });
+
+  const allTestEmails = [...users.map((u) => u.email), "superadmin@plataforma.test"];
+
   console.log(`Seed listo: organización "${organization.slug}" con ${venues.length} canchas.`);
-  console.log(`Usuarios de prueba (contraseña "${SEED_PASSWORD}"): ${users.map((u) => u.email).join(", ")}`);
+  console.log(`Usuarios de prueba (contraseña "${SEED_PASSWORD}"): ${allTestEmails.join(", ")}`);
 }
 
 main()

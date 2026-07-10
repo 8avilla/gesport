@@ -39,7 +39,7 @@ function IconInput({
 
 function FormSkeleton() {
   return (
-    <div className="mt-6 grid animate-pulse gap-3">
+    <div className="mt-6 grid animate-pulse gap-3 lg:mt-0">
       <div className="h-4 w-20 rounded bg-gray-200" />
       <div className="h-12 rounded-md bg-gray-100" />
       <div className="h-12 rounded-md bg-gray-100" />
@@ -55,18 +55,21 @@ export function ReservarForm({
   date,
   start,
   end,
+  cancellationWindowHours,
 }: {
   orgSlug: string;
   venueId: string;
   date: string;
   start: string;
   end: string;
+  cancellationWindowHours: number;
 }) {
   const router = useRouter();
   const [shell, setShell] = useState<CreateBookingResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [showHint, setShowHint] = useState(false);
@@ -127,14 +130,14 @@ export function ReservarForm({
       clearTimeout(debounceRef.current);
     }
     debounceRef.current = setTimeout(() => {
-      updateBookingContact({ bookingId: shell.bookingId, customerName, customerPhone });
+      updateBookingContact({ bookingId: shell.bookingId, customerName, customerPhone, customerEmail });
     }, 600);
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [customerName, customerPhone, shell]);
+  }, [customerName, customerPhone, customerEmail, shell]);
 
   // Si Bold confirma mientras el cliente sigue en esta misma página, lo llevamos a la página
   // definitiva de la reserva (la misma a la que Bold redirige tras el pago).
@@ -168,7 +171,7 @@ export function ReservarForm({
 
   if (!shell?.ok) {
     return (
-      <p className="mt-6 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+      <p className="mt-6 rounded-md bg-amber-50 p-3 text-sm text-amber-800 lg:mt-0">
         {shell?.error === "cupo_no_disponible" ? (
           <>
             Justo alguien más reservó esa hora.{" "}
@@ -189,39 +192,55 @@ export function ReservarForm({
   const contactComplete = isContactComplete(customerName, customerPhone);
 
   return (
-    <div className="mt-6">
+    <div className="mt-6 lg:mt-0">
       <h2 className="text-sm font-medium text-gray-700">Tus datos</h2>
       <div className="mt-3 grid gap-3">
         <div>
           <IconInput
             icon="👤"
+            aria-label="Nombre completo"
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
             onBlur={() => setNameTouched(true)}
             invalid={nameTouched && customerName.length > 0 && !nameValid}
+            aria-invalid={nameTouched && customerName.length > 0 && !nameValid}
+            aria-describedby={nameTouched && customerName.length > 0 && !nameValid ? "name-error" : undefined}
             placeholder="Nombre completo"
           />
           {nameTouched && customerName.length > 0 && !nameValid && (
-            <p className="mt-1 text-xs text-red-600">Escribe al menos 3 letras, sin números ni símbolos.</p>
+            <p id="name-error" className="mt-1 text-xs text-red-600">
+              Escribe al menos 3 letras, sin números ni símbolos.
+            </p>
           )}
         </div>
         <div>
           <IconInput
             icon="💬"
+            aria-label="WhatsApp, 10 dígitos"
             value={customerPhone}
             onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
             onBlur={() => setPhoneTouched(true)}
             invalid={phoneTouched && customerPhone.length > 0 && !phoneValid}
+            aria-invalid={phoneTouched && customerPhone.length > 0 && !phoneValid}
+            aria-describedby={phoneTouched && customerPhone.length > 0 && !phoneValid ? "phone-error" : undefined}
             type="tel"
             inputMode="numeric"
             placeholder="WhatsApp (10 dígitos)"
           />
           {phoneTouched && customerPhone.length > 0 && !phoneValid && (
-            <p className="mt-1 text-xs text-red-600">
+            <p id="phone-error" className="mt-1 text-xs text-red-600">
               El número debe tener 10 dígitos ({customerPhone.length}/10).
             </p>
           )}
         </div>
+        <IconInput
+          icon="✉️"
+          aria-label="Email (opcional)"
+          value={customerEmail}
+          onChange={(e) => setCustomerEmail(e.target.value)}
+          type="email"
+          placeholder="Email (opcional)"
+        />
       </div>
 
       <div className="mt-4 rounded-xl border border-gray-200 p-4">
@@ -231,7 +250,7 @@ export function ReservarForm({
           <span className="text-gray-900">${shell.totalAmount.toLocaleString("es-CO")}</span>
         </div>
         <div className="mt-1.5 flex justify-between text-sm">
-          <span className="text-gray-500">Abono</span>
+          <span className="text-gray-500">Abono (para confirmar)</span>
           <span className="text-gray-900">- ${shell.depositAmount.toLocaleString("es-CO")}</span>
         </div>
         <div className="mt-1.5 flex justify-between border-t border-gray-100 pt-1.5 text-sm font-medium">
@@ -242,6 +261,15 @@ export function ReservarForm({
           <span>ℹ️</span>
           <span>Paga solo el abono para confirmar tu reserva. El saldo restante lo pagas en la cancha.</span>
         </p>
+        {cancellationWindowHours > 0 && (
+          <p className="mt-2 flex items-start gap-2 rounded-md bg-gray-50 p-2.5 text-xs text-gray-600">
+            <span>🛡️</span>
+            <span>
+              Cancela gratis hasta {cancellationWindowHours} horas antes de tu reserva, escribiéndonos por
+              WhatsApp.
+            </span>
+          </p>
+        )}
       </div>
 
       <div className="mt-4">
@@ -249,6 +277,7 @@ export function ReservarForm({
           <>
             <BoldButton
               payload={shell.boldPayload}
+              label="🔒 Pagar abono y confirmar reserva"
               disabled={!contactComplete}
               onDisabledClick={() => {
                 setShowHint(true);
@@ -262,7 +291,7 @@ export function ReservarForm({
               </p>
             )}
             <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-gray-500">
-              🔒 Pago 100% seguro con Bold
+              🔒 Pago 100% seguro con Bold · No te cobraremos el saldo restante ahora
             </p>
           </>
         ) : (
@@ -286,7 +315,7 @@ export function ReservarForm({
             <SubmitButton
               pendingLabel="Subiendo…"
               disabled={!contactComplete}
-              className="rounded-md bg-emerald-600 px-4 py-3 font-medium text-white hover:bg-emerald-700 disabled:bg-gray-300"
+              className="rounded-md bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800 disabled:bg-gray-300"
             >
               Subir comprobante
             </SubmitButton>

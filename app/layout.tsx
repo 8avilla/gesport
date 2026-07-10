@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SportArena",
+  title: "Cancha Libre",
   description: "Reserva canchas, paga tu abono y recibe la confirmación al instante.",
 };
 

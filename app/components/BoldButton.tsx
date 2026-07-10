@@ -76,7 +76,7 @@ export function BoldButton({
         className={`w-full rounded-full px-6 py-3.5 text-center text-base font-semibold text-white shadow-sm transition-colors ${
           disabled || !libraryReady
             ? "cursor-not-allowed bg-gray-300"
-            : "bg-emerald-600 hover:bg-emerald-700"
+            : "bg-emerald-700 hover:bg-emerald-800"
         }`}
       >
         {label}

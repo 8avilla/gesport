@@ -152,7 +152,7 @@ export function AvailabilityGrid({
             <button
               type="button"
               onClick={handleContinue}
-              className="flex-shrink-0 rounded-md bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
+              className="flex-shrink-0 rounded-md bg-emerald-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-800"
             >
               Continuar →
             </button>

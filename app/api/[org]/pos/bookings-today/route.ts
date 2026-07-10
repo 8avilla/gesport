@@ -10,7 +10,8 @@ export async function GET(
   const { org: orgSlug } = await params;
 
   const session = await auth();
-  if (!session?.user || session.user.orgSlug !== orgSlug) {
+  const isSuperadmin = session?.user?.role === "SUPERADMIN";
+  if (!session?.user || (!isSuperadmin && session.user.orgSlug !== orgSlug)) {
     return NextResponse.json({ error: "no autorizado" }, { status: 401 });
   }
 

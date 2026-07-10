@@ -83,7 +83,7 @@ export function VenueSummaryCard({
               <span className="text-lg font-semibold text-emerald-700">
                 ${venue.hourlyRate.toLocaleString("es-CO")}
               </span>
-              <span className="ml-1 text-xs text-gray-400">/hora</span>
+              <span className="ml-1 text-xs text-gray-500">/hora</span>
             </span>
           </div>
           {Boolean(venue.capacity) && (

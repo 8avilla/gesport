@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatBusinessDayLabel } from "@/lib/time/business-day";
-import { ORG_MAPS_LINK } from "@/lib/org/maps";
+import { getOrgMapsLink } from "@/lib/org/maps";
 import { VenueSummaryCard } from "@/app/components/VenueSummaryCard";
+import { BackButton } from "../BackButton";
 import { ReservarForm } from "./ReservarForm";
 
 export default async function ReservarPage({
@@ -33,31 +33,39 @@ export default async function ReservarPage({
   const { weekday, day, month } = formatBusinessDayLabel(date);
 
   return (
-    <main className="mx-auto max-w-md px-4 py-6">
-      <div className="grid grid-cols-[2.5rem_1fr_2.5rem] items-center">
-        <Link
-          href={`/${orgSlug}/${venue.id}?date=${date}`}
+    <main className="mx-auto max-w-md px-4 py-6 lg:max-w-4xl">
+      <div className="grid grid-cols-[2.5rem_1fr_2.5rem] items-center lg:grid-cols-[2.5rem_1fr]">
+        <BackButton
+          fallbackHref={`/${orgSlug}/${venue.id}?date=${date}`}
           className="flex h-9 w-9 items-center justify-center rounded-full text-gray-700 hover:bg-gray-100"
-          aria-label="Volver"
-        >
-          ←
-        </Link>
-        <h1 className="text-center text-lg font-semibold text-gray-900">Confirma tu reserva</h1>
+        />
+        <h1 className="text-center text-lg font-semibold text-gray-900 lg:text-left lg:text-xl">
+          Confirma tu reserva
+        </h1>
       </div>
 
-      <div className="mt-4">
-        <VenueSummaryCard
-          venue={venue}
-          weekday={weekday}
-          day={day}
-          month={month}
-          startTime={start}
-          endTime={end}
-          mapsLink={ORG_MAPS_LINK[orgSlug]}
+      <div className="lg:mt-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-10">
+        <div className="mt-4 lg:sticky lg:top-8 lg:mt-0">
+          <VenueSummaryCard
+            venue={venue}
+            weekday={weekday}
+            day={day}
+            month={month}
+            startTime={start}
+            endTime={end}
+            mapsLink={getOrgMapsLink(organization)}
+          />
+        </div>
+
+        <ReservarForm
+          orgSlug={orgSlug}
+          venueId={venue.id}
+          date={date}
+          start={start}
+          end={end}
+          cancellationWindowHours={organization.cancellationWindowHours}
         />
       </div>
-
-      <ReservarForm orgSlug={orgSlug} venueId={venue.id} date={date} start={start} end={end} />
     </main>
   );
 }

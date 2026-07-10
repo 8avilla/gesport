@@ -1,4 +1,4 @@
-// SportArena opera únicamente en Colombia (America/Bogota, UTC-5 fijo, sin horario de verano). Un
+// Cancha Libre opera únicamente en Colombia (America/Bogota, UTC-5 fijo, sin horario de verano). Un
 // offset constante alcanza; si algún día se opera en una zona con DST, esto necesita una librería
 // de zonas horarias real (Intl o dayjs+timezone) en vez de un offset fijo.
 const BUSINESS_UTC_OFFSET = "-05:00";

@@ -117,14 +117,16 @@ const updateContactSchema = z.object({
   bookingId: z.string().min(1),
   customerName: z.string().trim().max(200),
   customerPhone: z.string().trim().max(50),
+  customerEmail: z.string().trim().max(200).email().optional().or(z.literal("")),
 });
 
-// Autoguardado del nombre/teléfono mientras el cliente escribe (ver ReservarForm) — la reserva ya
-// existe desde createBookingShell, esto solo la va completando. No bloquea al cliente ni redirige.
+// Autoguardado del nombre/teléfono/email mientras el cliente escribe (ver ReservarForm) — la reserva
+// ya existe desde createBookingShell, esto solo la va completando. No bloquea al cliente ni redirige.
 export async function updateBookingContact(input: {
   bookingId: string;
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
 }): Promise<{ ok: boolean }> {
   const parsed = updateContactSchema.safeParse(input);
   if (!parsed.success) {
@@ -141,10 +143,22 @@ export async function updateBookingContact(input: {
     return { ok: false };
   }
 
+  const { customerName, customerPhone, customerEmail } = parsed.data;
+
   await db.booking.update({
     where: { id: booking.id },
-    data: { customerName: parsed.data.customerName, customerPhone: parsed.data.customerPhone },
+    data: { customerName, customerPhone, customerEmail: customerEmail || null },
   });
+
+  // El cliente ("Mis reservas", login por WhatsApp) se crea solo apenas los datos de contacto quedan
+  // completos — no antes, para no dejar cuentas a medio llenar con nombre/teléfono vacíos.
+  if (isContactComplete(customerName, customerPhone)) {
+    await db.customer.upsert({
+      where: { phone: customerPhone },
+      create: { phone: customerPhone, name: customerName, email: customerEmail || null },
+      update: { name: customerName, ...(customerEmail ? { email: customerEmail } : {}) },
+    });
+  }
 
   return { ok: true };
 }

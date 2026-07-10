@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireStaffSession } from "@/lib/auth/session-guards";
 
 export default async function ResultadoCierrePage({
   params,
@@ -9,10 +9,7 @@ export default async function ResultadoCierrePage({
 }) {
   const { org: orgSlug, shiftId } = await params;
 
-  const session = await auth();
-  if (!session?.user || session.user.orgSlug !== orgSlug) {
-    notFound();
-  }
+  await requireStaffSession(orgSlug);
 
   const shift = await db.cashShift.findUnique({ where: { id: shiftId } });
   if (!shift || shift.expectedCash === null || shift.countedCash === null) {

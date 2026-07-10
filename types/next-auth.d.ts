@@ -3,8 +3,9 @@ import type { UserRole } from "@/lib/generated/prisma";
 declare module "next-auth" {
   interface User {
     role: UserRole;
-    orgId: string;
-    orgSlug: string;
+    // Undefined solo para SUPERADMIN (rol global de plataforma, sin organización propia).
+    orgId?: string;
+    orgSlug?: string;
   }
 
   interface Session {
@@ -13,8 +14,8 @@ declare module "next-auth" {
       name: string;
       email: string;
       role: UserRole;
-      orgId: string;
-      orgSlug: string;
+      orgId?: string;
+      orgSlug?: string;
     };
   }
 }
@@ -24,7 +25,7 @@ declare module "next-auth" {
 declare module "@auth/core/jwt" {
   interface JWT {
     role: UserRole;
-    orgId: string;
-    orgSlug: string;
+    orgId?: string;
+    orgSlug?: string;
   }
 }

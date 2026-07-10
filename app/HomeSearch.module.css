@@ -1,0 +1,513 @@
+.home {
+  --green-900: #14532d;
+  --green-700: #15803d;
+  --green-600: #16a34a;
+  --green-500: #22c55e;
+  --green-50: #ecfdf3;
+  --ink: #111827;
+  --gray-700: #374151;
+  --gray-500: #6b7280;
+  --gray-400: #9ca3af;
+  --gray-200: #e5e7eb;
+  --gray-100: #f3f4f6;
+  --bg: #f7f8f9;
+  --white: #ffffff;
+  --amber: #f59e0b;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-pill: 999px;
+  --shadow-card: 0 1px 3px rgba(17, 24, 39, 0.06), 0 4px 14px rgba(17, 24, 39, 0.05);
+  --shadow-float: 0 10px 30px rgba(17, 24, 39, 0.14);
+  background: var(--bg);
+  color: var(--ink);
+  overflow-x: hidden;
+}
+.home button { font-family: inherit; cursor: pointer; }
+.home img { display: block; max-width: 100%; }
+
+/* ---------- Header ---------- */
+.home .header {
+  background: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 40px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.home .brand { display: flex; align-items: center; gap: 10px; }
+.home .headerNav { display: flex; align-items: center; gap: 28px; font-size: 15.5px; font-weight: 600; }
+.home .navItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  background: none;
+  border: none;
+  font-size: 15.5px;
+  font-weight: 600;
+}
+.home .hamburger { display: flex; flex-direction: column; gap: 5px; background: none; border: none; padding: 6px; }
+.home .hamburger span { width: 22px; height: 2.5px; background: var(--ink); border-radius: 2px; }
+
+/* ---------- Header menu (dropdown, <details>/<summary>, sin JS) ---------- */
+.home .menu { position: relative; }
+.home .menu > summary {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+}
+.home .menu > summary::-webkit-details-marker,
+.home .menu > summary::marker {
+  display: none;
+  content: "";
+}
+.home .menu > summary span { width: 22px; height: 2.5px; background: var(--ink); border-radius: 2px; }
+.home .menuPanel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  background: var(--white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  padding: 8px;
+  min-width: 230px;
+  display: grid;
+  z-index: 60;
+}
+.home .menuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+.home .menuItem:hover { background: var(--gray-100); }
+.home .menuDivider { height: 1px; background: var(--gray-200); margin: 6px 4px; }
+
+/* ---------- Hero ---------- */
+.home .hero {
+  position: relative;
+  background:
+    linear-gradient(rgba(4, 20, 10, 0.55), rgba(4, 20, 10, 0.72)),
+    radial-gradient(ellipse 60% 45% at 20% 15%, rgba(190, 255, 190, 0.25), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 20%, rgba(200, 255, 210, 0.18), transparent 60%),
+    linear-gradient(160deg, #0c2a16 0%, #06170c 45%, #03110a 100%);
+  padding: 64px 40px 96px;
+  color: #fff;
+  overflow: hidden;
+}
+.home .hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 26px);
+  mask-image: linear-gradient(rgba(0, 0, 0, 0.7), transparent 75%);
+  pointer-events: none;
+}
+.home .hero h1 { position: relative; font-size: 46px; font-weight: 800; text-align: center; letter-spacing: -0.5px; }
+.home .hero .sub { position: relative; text-align: center; font-size: 18px; margin-top: 10px; color: #e7f2ea; }
+
+.home .searchCard {
+  position: relative;
+  background: var(--white);
+  color: var(--ink);
+  max-width: 900px;
+  margin: 32px auto 0;
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  display: grid;
+  grid-template-columns: 1.4fr 0.9fr 0.9fr auto;
+  grid-template-areas: "sport fecha hora cta";
+  gap: 16px;
+  align-items: end;
+  box-shadow: var(--shadow-float);
+}
+.home .fSport { grid-area: sport; }
+.home .fFecha { grid-area: fecha; }
+.home .fHora { grid-area: hora; }
+.home .fCta { grid-area: cta; }
+.home .field label { display: block; font-size: 13.5px; color: var(--gray-700); margin-bottom: 8px; font-weight: 500; }
+.home .control {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--white);
+  width: 100%;
+  color: var(--ink);
+}
+.home .btnPrimary {
+  background: var(--green-700);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 26px;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.home .btnPrimary:hover { background: var(--green-900); }
+
+/* ---------- Trust bar ---------- */
+.home .trust {
+  display: flex;
+  gap: 56px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 22px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+.home .trust .tItem { display: flex; align-items: center; gap: 9px; }
+
+/* ---------- Results layout ---------- */
+.home .resultsWrap { max-width: 1240px; margin: 8px auto 0; padding: 0 24px 40px; }
+.home .resultsPanel {
+  background: var(--white);
+  border-radius: 24px;
+  padding: 30px;
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 28px;
+  box-shadow: var(--shadow-card);
+}
+.home .resultsHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.home .resultsHead h2 { font-size: 24px; font-weight: 800; }
+.home .headControls { display: flex; gap: 12px; }
+.home .selectBtn,
+.home .filterBtn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  border-radius: var(--radius-pill);
+  padding: 10px 18px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ---------- Court cards ---------- */
+.home .card {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 20px;
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin-bottom: 18px;
+  background: var(--white);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s, box-shadow 0.15s;
+  text-decoration: none;
+  color: inherit;
+}
+.home .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-float); }
+.home .cardPhoto { position: relative; border-radius: var(--radius-md); height: 158px; overflow: hidden; }
+.home .cardPhoto img { height: 100%; width: 100%; object-fit: cover; }
+.home .cardPhoto .badge,
+.home .cardPhoto .sportTag {
+  position: absolute;
+  top: 10px;
+  z-index: 2;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+}
+.home .badge { left: 10px; background: var(--green-600); color: #fff; }
+.home .badge.amber { background: var(--amber); }
+.home .badge.gray { background: var(--gray-500); }
+.home .sportTag { right: 10px; background: var(--white); color: var(--ink); }
+
+.home .ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 44px; }
+.home .phNight {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(210, 255, 210, 0.5), transparent 30%),
+    radial-gradient(circle at 75% 12%, rgba(210, 255, 220, 0.4), transparent 28%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 18px),
+    linear-gradient(165deg, #1d4a2a, #0a2413 70%);
+}
+.home .phStadium {
+  background:
+    radial-gradient(circle at 15% 10%, rgba(255, 255, 240, 0.55), transparent 25%),
+    radial-gradient(circle at 55% 8%, rgba(255, 255, 240, 0.45), transparent 22%),
+    radial-gradient(circle at 90% 12%, rgba(255, 255, 240, 0.5), transparent 25%),
+    linear-gradient(175deg, #2e5c3a 20%, #17371f);
+}
+.home .phPadel {
+  background:
+    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.25), transparent 35%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.06) 0 2px, transparent 2px 24px),
+    linear-gradient(160deg, #2563ab, #123f74 75%);
+}
+.home .phBlueCourt {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.08), transparent 40%),
+    radial-gradient(circle at 50% 90%, rgba(255, 255, 255, 0.15), transparent 40%),
+    linear-gradient(170deg, #2c6fb0 10%, #174a80);
+}
+.home .phDay {
+  background:
+    radial-gradient(circle at 70% 15%, rgba(255, 255, 220, 0.4), transparent 40%),
+    linear-gradient(170deg, #3e7a4b 15%, #24512e 80%);
+}
+
+.home .cardBody { display: flex; flex-direction: column; padding: 8px 6px 8px 0; min-width: 0; }
+.home .cardTop { display: flex; justify-content: space-between; gap: 16px; }
+.home .cardTop h3 { font-size: 20px; font-weight: 800; }
+.home .location { margin-top: 7px; font-size: 14px; color: var(--gray-500); }
+.home .price { text-align: right; white-space: nowrap; }
+.home .price .desde { font-size: 12.5px; color: var(--gray-500); }
+.home .price .amount { font-size: 23px; font-weight: 800; }
+.home .price .per { font-size: 12.5px; color: var(--gray-500); }
+.home .cardBottom {
+  margin-top: auto;
+  padding-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.home .amenities { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.home .amenity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gray-700);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+.home .btnSchedule {
+  background: var(--green-700);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 20px;
+  font-size: 14.5px;
+  font-weight: 700;
+  transition: background 0.15s;
+  text-decoration: none;
+  display: inline-block;
+}
+.home .btnSchedule:hover { background: var(--green-900); }
+.home .priceMobile { display: none; }
+
+.home .emptyState {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--gray-500);
+  border: 1px dashed var(--gray-200);
+  border-radius: var(--radius-lg);
+}
+.home .emptyState .icon { font-size: 32px; }
+
+/* ---------- Map ---------- */
+.home .mapCol { position: relative; }
+.home .map {
+  position: sticky;
+  top: 90px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  height: calc(100vh - 130px);
+  min-height: 560px;
+  max-height: 780px;
+  background: #e8eef2;
+}
+.home .map :global(.leaflet-container) { height: 100%; width: 100%; }
+.home .mapEmpty {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  font-size: 13.5px;
+  color: var(--gray-500);
+}
+.home .locateBtn {
+  position: absolute;
+  right: 16px;
+  bottom: 120px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--white);
+  border: none;
+  box-shadow: var(--shadow-float);
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  color: var(--ink);
+  z-index: 400;
+}
+.home .exploreCard {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: var(--shadow-float);
+  z-index: 400;
+}
+.home .exploreCard p { font-size: 16px; font-weight: 700; line-height: 1.35; }
+.home .exploreCard .go {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--green-700);
+  color: #fff;
+  border: none;
+  font-size: 17px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+/* ---------- Footer band ---------- */
+.home .footerBand { max-width: 1240px; margin: 0 auto 48px; padding: 0 24px; }
+.home .footerInner {
+  background: var(--gray-100);
+  border-radius: 24px;
+  padding: 28px 34px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  align-items: center;
+}
+.home .footFeature { display: flex; gap: 12px; align-items: flex-start; }
+.home .footFeature .ficon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  flex: none;
+  background: var(--white);
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  color: var(--green-700);
+  box-shadow: var(--shadow-card);
+}
+.home .footFeature h4 { font-size: 15px; font-weight: 800; }
+.home .footFeature p { font-size: 13px; color: var(--gray-500); margin-top: 3px; line-height: 1.4; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1080px) {
+  .home .resultsPanel { grid-template-columns: 1fr; }
+  .home .map { position: relative; top: 0; height: 420px; min-height: 0; }
+  .home .footerInner { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 760px) {
+  .home .header { padding: 12px 16px; }
+  .home .headerNav .navItem { display: none; }
+
+  .home .hero { padding: 34px 16px 30px; }
+  .home .hero h1 { font-size: 28px; }
+  .home .hero .sub { font-size: 14.5px; margin-top: 6px; }
+
+  .home .searchCard {
+    margin-top: 24px;
+    padding: 18px 16px;
+    border-radius: 22px;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "sport sport"
+      "fecha hora"
+      "cta   cta";
+    gap: 14px;
+    align-items: stretch;
+  }
+  .home .field label { font-size: 12.5px; margin-bottom: 7px; }
+  .home .control { padding: 12px 13px; font-size: 14px; }
+  .home .btnPrimary { width: 100%; padding: 15px; font-size: 15.5px; }
+
+  .home .trust {
+    margin: 14px 16px 0;
+    padding: 16px 10px;
+    background: var(--white);
+    border-radius: 18px;
+    box-shadow: var(--shadow-card);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .home .trust .tItem { flex-direction: column; text-align: center; gap: 7px; font-size: 12px; line-height: 1.3; }
+
+  .home .resultsWrap { padding: 0 16px 24px; margin-top: 16px; }
+  .home .resultsPanel { display: block; padding: 0; background: transparent; box-shadow: none; border-radius: 0; }
+  .home .resultsHead { margin-bottom: 16px; }
+  .home .resultsHead h2 { font-size: 19px; width: 100%; }
+  .home .headControls { width: 100%; }
+  .home .selectBtn,
+  .home .filterBtn { font-size: 13.5px; padding: 9px 15px; }
+
+  .home .card { grid-template-columns: 1fr; gap: 0; padding: 12px; border-radius: 22px; margin-bottom: 16px; }
+  .home .cardPhoto { height: 185px; border-radius: 16px; }
+  .home .cardBody { padding: 14px 4px 4px; }
+  .home .cardTop .price { display: none; }
+  .home .cardTop h3 { font-size: 19px; }
+  .home .location { font-size: 13px; }
+  .home .cardBottom { padding-top: 12px; align-items: flex-end; }
+  .home .amenities {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .home .amenities::-webkit-scrollbar { display: none; }
+  .home .priceMobile { display: block; }
+  .home .priceMobile .desde { font-size: 11.5px; color: var(--gray-500); }
+  .home .priceMobile .amount { font-size: 19px; font-weight: 800; }
+  .home .priceMobile .amount small { font-size: 11.5px; font-weight: 500; color: var(--gray-500); }
+  .home .btnSchedule { padding: 11px 18px; font-size: 14px; }
+
+  .home .mapCol { display: none; }
+
+  .home .footerBand { padding: 0 16px; margin-bottom: 20px; }
+  .home .footerInner { grid-template-columns: 1fr; padding: 22px 20px; gap: 20px; }
+}

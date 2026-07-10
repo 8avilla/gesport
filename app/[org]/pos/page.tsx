@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireStaffSession } from "@/lib/auth/session-guards";
 import { openCashShift } from "@/lib/pos/actions";
 import { getOpenShift, getTodayBookings } from "@/lib/pos/queries";
 import { BookingsList } from "./BookingsList";
@@ -9,10 +9,7 @@ import { BookingsList } from "./BookingsList";
 export default async function PosHomePage({ params }: { params: Promise<{ org: string }> }) {
   const { org: orgSlug } = await params;
 
-  const session = await auth();
-  if (!session?.user || session.user.orgSlug !== orgSlug) {
-    notFound();
-  }
+  const session = await requireStaffSession(orgSlug);
 
   const organization = await db.organization.findUnique({ where: { slug: orgSlug } });
   if (!organization) {
