@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cancelConfirmedBooking } from "@/lib/admin/actions";
 import { BookingStatus } from "@/lib/booking/state-machine";
-import { STATUS_BADGE_STYLE, STATUS_LABEL } from "@/lib/booking/status-display";
+import { getPaymentState, PAYMENT_STATE_BADGE_STYLE, PAYMENT_STATE_LABEL, STATUS_BADGE_STYLE, STATUS_LABEL } from "@/lib/booking/status-display";
 import { VENUE_TYPE_LABEL } from "@/lib/venues/type-info";
 import { SubmitButton } from "@/app/components/SubmitButton";
 
@@ -23,16 +23,22 @@ type BookingRow = {
   status: string;
   recurringBookingId: string | null;
   venue: { id: string; name: string };
+  totalAmount: number;
+  depositAmount: number;
 };
 
-function StatusBadge({ status }: { status: string }) {
+// CANCELADA/NO_SHOW/EXPIRADA no entran en el modelo de estado de pago (getPaymentState devuelve
+// null) — para esas se cae al STATUS_LABEL/STATUS_BADGE_STYLE de siempre.
+function StatusBadge({ status, totalAmount, depositAmount }: { status: string; totalAmount: number; depositAmount: number }) {
+  const paymentState = getPaymentState({ status, totalAmount, depositAmount });
+  const label = paymentState ? PAYMENT_STATE_LABEL[paymentState] : (STATUS_LABEL[status] ?? status);
+  const badgeStyle = paymentState
+    ? PAYMENT_STATE_BADGE_STYLE[paymentState]
+    : (STATUS_BADGE_STYLE[status] ?? "bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200");
+
   return (
-    <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
-        STATUS_BADGE_STYLE[status] ?? "bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200"
-      }`}
-    >
-      {STATUS_LABEL[status] ?? status}
+    <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${badgeStyle}`}>
+      {label}
     </span>
   );
 }
@@ -206,7 +212,7 @@ export function BookingsTable({
                     <td className="px-4 py-3">{booking.customerName}</td>
                     <td className="px-4 py-3 text-gray-500">{booking.customerPhone}</td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={booking.status} />
+                      <StatusBadge status={booking.status} totalAmount={booking.totalAmount} depositAmount={booking.depositAmount} />
                     </td>
                     <td className="px-4 py-3 text-right">
                       {booking.status === BookingStatus.CONFIRMADA && (
@@ -239,7 +245,7 @@ export function BookingsTable({
                       {booking.venue.name} — {!isSingleDay && `${booking.date.toISOString().slice(0, 10)} `}
                       {booking.startTime}
                     </span>
-                    <StatusBadge status={booking.status} />
+                    <StatusBadge status={booking.status} totalAmount={booking.totalAmount} depositAmount={booking.depositAmount} />
                   </div>
                   <div className="mt-1 text-sm text-gray-500">
                     {booking.customerName} · {booking.customerPhone}

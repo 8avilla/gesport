@@ -22,7 +22,7 @@ import {
 } from "@/lib/booking/state-machine";
 import { isValidMunicipio } from "@/lib/data/colombia";
 import { db, isUniqueConstraintError } from "@/lib/db";
-import { uploadOrganizationLogo, uploadVenuePhoto } from "@/lib/storage/azure";
+import { uploadOrganizationLogo, uploadReceipt, uploadVenuePhoto } from "@/lib/storage/azure";
 import { businessDateTimeInstant, businessDayStart } from "@/lib/time/business-day";
 import { logAdminAction } from "./audit";
 
@@ -721,6 +721,56 @@ export async function cancelConfirmedBooking(formData: FormData): Promise<void> 
   redirect(`/admin/reservas?${query.toString()}`);
 }
 
+const registerPaymentSchema = z.object({
+  bookingId: z.string().min(1),
+  amount: z.coerce.number().int().min(1),
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+// Abonar (monto parcial) o pagar el total pendiente (VerReservaDrawer.tsx ya manda el saldo exacto
+// como `amount`) desde el detalle de una reserva en la agenda — solo aplica a reservas activas
+// (CONFIRMADA/EN_CURSO); el abono nunca puede superar el precio, se topa igual que al crear la
+// reserva (ver createBooking, misma razón: nunca queda "sobrepagada").
+export async function registerBookingPayment(formData: FormData): Promise<void> {
+  const parsed = registerPaymentSchema.safeParse({
+    bookingId: formData.get("bookingId"),
+    amount: formData.get("amount"),
+    fecha: formData.get("fecha"),
+  });
+  if (!parsed.success) {
+    notFound();
+  }
+
+  const { session } = await requireAdminSession();
+
+  const booking = await db.booking.findUnique({ where: { id: parsed.data.bookingId } });
+  if (!booking || (booking.status !== BookingStatus.CONFIRMADA && booking.status !== BookingStatus.EN_CURSO)) {
+    notFound();
+  }
+
+  const newDepositAmount = Math.min(booking.depositAmount + parsed.data.amount, booking.totalAmount);
+
+  // Soporte de pago opcional en este mismo abono — si se sube uno nuevo, reemplaza el anterior
+  // (receiptUrl es un solo campo, no un historial); igual que al crear la reserva, mismo storage.
+  const receiptFile = formData.get("receipt");
+  const receiptUrl = receiptFile instanceof File && receiptFile.size > 0 ? await uploadReceipt(booking.id, receiptFile) : undefined;
+
+  await db.booking.update({
+    where: { id: booking.id },
+    data: { depositAmount: newDepositAmount, ...(receiptUrl ? { receiptUrl } : {}) },
+  });
+
+  await logAdminAction({
+    orgId: booking.orgId,
+    actorUserId: session.user.id,
+    actorName: session.user.name,
+    action: "booking.registerPayment",
+    summary: `Registró un pago de $${parsed.data.amount.toLocaleString("es-CO")} en la reserva de ${booking.customerName || "cliente sin nombre"} (abono ${booking.depositAmount.toLocaleString("es-CO")} → ${newDepositAmount.toLocaleString("es-CO")})`,
+  });
+
+  redirect(`/admin/reservas?vista=agenda&fecha=${parsed.data.fecha}&pagoRegistrado=1`);
+}
+
 const createRecurringBookingSchema = z.object({
   venueId: z.string().min(1),
   customerName: z.string().trim().min(2).max(200),
@@ -865,13 +915,17 @@ export async function createRecurringBooking(formData: FormData): Promise<void> 
 const createBookingSchema = z.object({
   venueId: z.string().min(1),
   customerName: z.string().trim().min(2).max(200),
-  customerPhone: z.string().trim().min(7).max(50),
+  // El teléfono es opcional acá (a diferencia del flujo de cliente) — el admin puede estar
+  // registrando una reserva presencial o telefónica sin ese dato a mano.
+  customerPhone: z.string().trim().max(50).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^\d{2}:00$/), // hora en punto — mismo grid de 1h fijo del resto de la app
-  status: z.enum(["CONFIRMADA", "PENDIENTE_PAGO"]),
-  // Toggle "Pendiente" / "Pagado" del drawer — decide si depositAmount queda parcial (según el % de
-  // abono de la organización) o si la reserva queda saldada de una vez (igual que el walk-in de POS).
-  paymentToggle: z.enum(["pendiente", "pagado"]),
+  // Precio editable por el admin (ej. tarifa especial/descuento) — si lo deja vacío, se usa la
+  // tarifa real de la cancha (resolveVenuePrice, con excepciones de precio si aplican).
+  totalAmount: z.literal("").transform(() => undefined).or(z.coerce.number().int().min(0)).optional(),
+  // Abono recibido, en pesos — el estado de pago (sin pago/abonada/pagada) no se elige a mano, se
+  // deriva de este valor comparado contra el precio final (ver más abajo, tras resolver `price`).
+  depositAmount: z.literal("").transform(() => 0).or(z.coerce.number().int().min(0)),
   bookingType: z.enum(["PARTICULAR", "TORNEO", "CLASE"]).optional(),
   notes: z.string().trim().max(500).optional(),
 });
@@ -889,24 +943,33 @@ export async function createBooking(formData: FormData): Promise<void> {
   const parsed = createBookingSchema.safeParse({
     venueId: formData.get("venueId"),
     customerName: formData.get("customerName"),
-    customerPhone: formData.get("customerPhone"),
+    customerPhone: formData.get("customerPhone") || undefined,
     date: formData.get("date"),
     startTime: formData.get("startTime"),
-    status: formData.get("status"),
-    paymentToggle: formData.get("paymentToggle"),
+    totalAmount: formData.get("totalAmount"),
+    depositAmount: formData.get("depositAmount"),
     bookingType: formData.get("bookingType") || undefined,
     notes: formData.get("notes") || undefined,
   });
   if (
     !parsed.success ||
     !isValidCustomerName(parsed.data.customerName) ||
-    !isValidCustomerPhone(parsed.data.customerPhone)
+    (parsed.data.customerPhone && !isValidCustomerPhone(parsed.data.customerPhone))
   ) {
     redirect("/admin/reservas?nueva=1&error=datos_invalidos");
   }
 
-  const { venueId, customerName, customerPhone, date, startTime, status, paymentToggle, bookingType, notes } =
-    parsed.data;
+  const {
+    venueId,
+    customerName,
+    customerPhone,
+    date,
+    startTime,
+    totalAmount: totalAmountOverride,
+    depositAmount: depositAmountInput,
+    bookingType,
+    notes,
+  } = parsed.data;
 
   const hour = Number(startTime.slice(0, 2));
   if (hour < OPENING_HOUR || hour >= CLOSING_HOUR) {
@@ -927,19 +990,23 @@ export async function createBooking(formData: FormData): Promise<void> {
 
   const dateObj = businessDayStart(date);
   const endTime = slotEndTime(startTime);
-  const price = resolveVenuePrice(venue, venue.priceRules, date, startTime);
-  const depositAmount =
-    paymentToggle === "pagado" ? price : Math.round((price * org.depositPercentage) / 100);
+  const price = totalAmountOverride ?? resolveVenuePrice(venue, venue.priceRules, date, startTime);
+  // El abono nunca puede superar el precio final — si el admin escribe un monto mayor (o igual), la
+  // reserva simplemente queda pagada por completo, no "sobrepagada".
+  const depositAmount = Math.min(depositAmountInput, price);
 
   const bookingData = {
     orgId: org.id,
     venueId: venue.id,
     customerName,
-    customerPhone,
+    customerPhone: customerPhone ?? "",
     date: dateObj,
     startTime,
     endTime,
-    status: BookingStatus[status],
+    // Siempre CONFIRMADA — PENDIENTE_PAGO ("esperando pago por plataforma") es exclusivo del flujo
+    // de cliente vía pasarela (Bold); una reserva creada por el admin ya está agendada de una vez,
+    // el estado de pago real (sin pago/abonada/pagada) lo indica el abono, no un selector aparte.
+    status: BookingStatus.CONFIRMADA,
     blockingSlotKey: computeBlockingSlotKey(venue.id, dateObj, startTime),
     totalAmount: price,
     depositAmount,
@@ -954,18 +1021,39 @@ export async function createBooking(formData: FormData): Promise<void> {
   const unitIds = getVenueUnitIds(venue);
   const slotLockKeys = buildSlotLockKeys(unitIds, dateObj, startTime);
 
+  let createdBookingId: string;
   try {
-    await db.$transaction(async (tx) => {
+    createdBookingId = await db.$transaction(async (tx) => {
       const booking = await tx.booking.create({ data: bookingData });
       for (const key of slotLockKeys) {
         await tx.slotLock.create({ data: { key, bookingId: booking.id } });
       }
+      return booking.id;
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       redirect("/admin/reservas?nueva=1&error=cupo_no_disponible");
     }
     throw error;
+  }
+
+  // Soporte de pago opcional (comprobante Nequi/Daviplata) — mismo storage y campo receiptUrl que ya
+  // usa el flujo público (uploadReceiptToBlob en lib/booking/actions.ts), reutilizado acá para que el
+  // admin también pueda dejar constancia del abono al crear la reserva a mano.
+  const receiptFile = formData.get("receipt");
+  if (receiptFile instanceof File && receiptFile.size > 0) {
+    const receiptUrl = await uploadReceipt(createdBookingId, receiptFile);
+    await db.booking.update({ where: { id: createdBookingId }, data: { receiptUrl } });
+  }
+
+  // El cliente ("Mis reservas", login por WhatsApp) se crea/actualiza solo si hay un teléfono válido
+  // — mismo criterio y patrón que updateBookingContact (lib/booking/actions.ts) en el flujo público.
+  if (customerPhone && isValidCustomerPhone(customerPhone)) {
+    await db.customer.upsert({
+      where: { phone: customerPhone },
+      create: { phone: customerPhone, name: customerName },
+      update: { name: customerName },
+    });
   }
 
   await logAdminAction({
@@ -977,6 +1065,47 @@ export async function createBooking(formData: FormData): Promise<void> {
   });
 
   redirect(`/admin/reservas?fecha=${date}&creada=1`);
+}
+
+export interface CustomerSuggestion {
+  name: string;
+  phone: string;
+}
+
+// Autocompletar del campo "Cliente" en el drawer "Nueva reserva" (NuevaReservaDrawer) — se llama
+// directo desde el cliente (no es un <form action>), mismo patrón que updateBookingContact en
+// lib/booking/actions.ts. Busca entre las reservas ya hechas EN ESTA organización (no en la tabla
+// global de Customer, que es cross-org para "Mis reservas") — así solo sugiere clientes que ya
+// reservaron acá, sin filtrar por otras organizaciones.
+export async function searchCustomers(query: string): Promise<CustomerSuggestion[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) {
+    return [];
+  }
+
+  const { orgSlug } = await requireAdminSession();
+  const org = await db.organization.findUnique({ where: { slug: orgSlug }, select: { id: true } });
+  if (!org) {
+    return [];
+  }
+
+  const bookings = await db.booking.findMany({
+    where: { orgId: org.id, customerName: { contains: trimmed, mode: "insensitive" }, customerPhone: { not: "" } },
+    select: { customerName: true, customerPhone: true },
+    orderBy: { createdAt: "desc" },
+    take: 50, // margen para poder deduplicar por teléfono y aun así llegar a varias sugerencias
+  });
+
+  const seenPhones = new Set<string>();
+  const suggestions: CustomerSuggestion[] = [];
+  for (const booking of bookings) {
+    if (seenPhones.has(booking.customerPhone)) continue;
+    seenPhones.add(booking.customerPhone);
+    suggestions.push({ name: booking.customerName, phone: booking.customerPhone });
+    if (suggestions.length >= 6) break;
+  }
+
+  return suggestions;
 }
 
 const createUserSchema = z.object({

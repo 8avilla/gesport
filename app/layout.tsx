@@ -26,9 +26,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full overflow-x-hidden antialiased`}
     >
-      <body className="min-h-full">
+      {/* overflow-x-hidden en html Y body: una tabla ancha (ej. la grilla de agenda de
+          /admin/reservas) puede quedar contenida visualmente por su propio overflow-x-auto y aun
+          así hacer que el documento entero sea arrastrable hacia los lados en mobile — el elemento
+          raíz que realmente scrollea varía según el navegador, así que se cubren ambos sin afectar
+          el scroll horizontal interno de esos contenedores. */}
+      <body className="min-h-full overflow-x-hidden">
         {children}
         <Toaster position="top-center" richColors closeButton />
       </body>

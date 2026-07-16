@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireAdminSession } from "@/lib/auth/session-guards";
+import { todayBusinessDate } from "@/lib/time/business-day";
 import { RecurrenceWizard } from "./RecurrenceWizard";
 
 export default async function RecurringBookingWizardPage() {
@@ -31,7 +32,10 @@ export default async function RecurringBookingWizardPage() {
           Crea primero una cancha activa para poder reservar.
         </p>
       ) : (
-        <RecurrenceWizard venues={venues.map((v) => ({ id: v.id, name: v.name, hourlyRate: v.hourlyRate }))} />
+        <RecurrenceWizard
+          venues={venues.map((v) => ({ id: v.id, name: v.name, hourlyRate: v.hourlyRate }))}
+          todayIso={todayBusinessDate()}
+        />
       )}
     </main>
   );

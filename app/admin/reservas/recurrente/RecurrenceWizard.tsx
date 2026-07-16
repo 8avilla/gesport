@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createRecurringBooking } from "@/lib/admin/actions";
 import { buildWeeklyOccurrenceDates, MAX_RECURRING_OCCURRENCES } from "@/lib/booking/recurrence";
+import { buildQuickDateOptions } from "@/lib/time/business-day";
 import { SubmitButton } from "@/app/components/SubmitButton";
 
 // Espejo de OPENING_HOUR/CLOSING_HOUR (lib/booking/availability.ts) — no se importa directo porque
@@ -42,7 +43,8 @@ interface VenueOption {
   hourlyRate: number;
 }
 
-export function RecurrenceWizard({ venues }: { venues: VenueOption[] }) {
+export function RecurrenceWizard({ venues, todayIso }: { venues: VenueOption[]; todayIso: string }) {
+  const quickDateOptions = useMemo(() => buildQuickDateOptions(todayIso), [todayIso]);
   const [step, setStep] = useState(1);
   const [venueId, setVenueId] = useState(venues[0]?.id ?? "");
   const [customerName, setCustomerName] = useState("");
@@ -157,11 +159,28 @@ export function RecurrenceWizard({ venues }: { venues: VenueOption[] }) {
 
               <label className="text-sm font-medium text-gray-700">
                 Fecha de inicio *
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {quickDateOptions.map((option) => (
+                    <button
+                      key={option.date}
+                      type="button"
+                      onClick={() => setStartDate(option.date)}
+                      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                        startDate === option.date
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                          : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className={INPUT_CLASS}
+                  className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm shadow-sm
+                    focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
               </label>
               <label className="text-sm font-medium text-gray-700">

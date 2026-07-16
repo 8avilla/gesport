@@ -1,14 +1,24 @@
-import Link from "next/link";
-import { createBooking } from "@/lib/admin/actions";
+"use client";
+
+import { useRef, useState } from "react";
+import { createBooking, searchCustomers, type CustomerSuggestion } from "@/lib/admin/actions";
 import { CLOSING_HOUR, OPENING_HOUR } from "@/lib/booking/availability";
+import { resolveVenuePrice, type VenuePriceRuleLike } from "@/lib/booking/pricing";
 import { SubmitButton } from "@/app/components/SubmitButton";
+
+export interface VenueForBooking {
+  id: string;
+  name: string;
+  hourlyRate: number;
+  priceRules: VenuePriceRuleLike[];
+}
 
 const HOUR_OPTIONS = Array.from({ length: CLOSING_HOUR - OPENING_HOUR }, (_, i) =>
   `${String(OPENING_HOUR + i).padStart(2, "0")}:00`,
 );
 
 const ERROR_MESSAGES: Record<string, string> = {
-  datos_invalidos: "Revisa el nombre (solo letras) y el teléfono (10 dígitos) del cliente.",
+  datos_invalidos: "Revisa el nombre del cliente (solo letras) y, si escribiste un teléfono, que tenga 10 dígitos.",
   cupo_no_disponible: "Ese horario ya está ocupado en esa cancha — elige otra hora o cancha.",
 };
 
@@ -19,25 +29,91 @@ const INPUT_CLASS =
 export function NuevaReservaDrawer({
   venues,
   defaultDate,
-  closeHref,
+  defaultVenueId,
+  defaultStartTime,
+  onClose,
   error,
 }: {
-  venues: { id: string; name: string; hourlyRate: number }[];
+  venues: VenueForBooking[];
   defaultDate: string;
-  closeHref: string;
+  // Prefill al abrir el drawer desde una celda "+ Libre" del grid de agenda (AgendaGrid.tsx) — el
+  // admin no tiene que volver a elegir cancha/hora que ya seleccionó al hacer clic ahí.
+  defaultVenueId?: string;
+  defaultStartTime?: string;
+  onClose: () => void;
   error?: string;
 }) {
-  const estimatedTotal = venues[0]?.hourlyRate ?? 0;
+  const [venueId, setVenueId] = useState(defaultVenueId ?? venues[0]?.id ?? "");
+  const [date, setDate] = useState(defaultDate);
+  const [startTime, setStartTime] = useState(defaultStartTime ?? "");
+  const selectedVenue = venues.find((v) => v.id === venueId);
+  // Precio real de la tarifa (incluye excepciones por día/hora, ver resolveVenuePrice) — se recalcula
+  // solo mientras el admin no haya tocado el campo a mano (totalManuallyEdited); apenas lo edita una
+  // vez, su valor manda y deja de seguir los cambios de cancha/fecha/hora.
+  const computedPrice = selectedVenue
+    ? startTime
+      ? resolveVenuePrice(selectedVenue, selectedVenue.priceRules, date, startTime)
+      : selectedVenue.hourlyRate
+    : 0;
+
+  // Estado de pago derivado automáticamente del abono, no elegido a mano: 0 = sin pago, entre 0 y el
+  // precio = abonada, igual o más que el precio = pagada (el abono nunca puede superar el precio, se
+  // topa al guardar — ver createBooking en lib/admin/actions.ts).
+  const [depositInput, setDepositInput] = useState("0");
+  const [totalInput, setTotalInput] = useState("");
+  const [totalManuallyEdited, setTotalManuallyEdited] = useState(false);
+  const effectiveTotal = totalManuallyEdited ? Number(totalInput) || 0 : computedPrice;
+  const depositNum = Number(depositInput) || 0;
+  const paymentLabel = depositNum <= 0 ? "Sin pago" : depositNum >= effectiveTotal ? "Pagada" : "Abonada";
+  const paymentBadgeClass =
+    paymentLabel === "Sin pago"
+      ? "bg-gray-100 text-gray-700"
+      : paymentLabel === "Pagada"
+        ? "bg-emerald-50 text-emerald-700"
+        : "bg-amber-50 text-amber-700";
+
+  // Autocompletar de "Cliente": busca entre quienes ya reservaron en esta organización mientras el
+  // admin escribe, para no tener que volver a digitar nombre/teléfono de un cliente conocido — si no
+  // existe, se crea solo al guardar la reserva (ver createBooking, lib/admin/actions.ts).
+  const [nameInput, setNameInput] = useState("");
+  const [phoneInput, setPhoneInput] = useState("");
+  const [suggestions, setSuggestions] = useState<CustomerSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSeq = useRef(0);
+
+  function handleNameChange(value: string) {
+    setNameInput(value);
+    setShowSuggestions(true);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    const seq = ++searchSeq.current;
+    searchTimeout.current = setTimeout(async () => {
+      const results = await searchCustomers(value);
+      if (seq === searchSeq.current) setSuggestions(results);
+    }, 250);
+  }
+
+  function pickSuggestion(suggestion: CustomerSuggestion) {
+    setNameInput(suggestion.name);
+    setPhoneInput(suggestion.phone);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
 
   return (
     <>
-      <Link href={closeHref} aria-label="Cerrar" className="fixed inset-0 z-40 bg-black/40" />
+      <button type="button" aria-label="Cerrar" onClick={onClose} className="fixed inset-0 z-40 bg-black/40" />
       <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Nueva reserva</h2>
-          <Link href={closeHref} aria-label="Cerrar" className="text-2xl leading-none text-gray-400 hover:text-gray-600">
+          <button
+            type="button"
+            aria-label="Cerrar"
+            onClick={onClose}
+            className="text-2xl leading-none text-gray-400 hover:text-gray-600"
+          >
             ×
-          </Link>
+          </button>
         </div>
 
         {error && ERROR_MESSAGES[error] && (
@@ -47,7 +123,13 @@ export function NuevaReservaDrawer({
         <form action={createBooking} className="grid gap-4 px-6 py-5">
           <label className="text-sm font-medium text-gray-700">
             Cancha *
-            <select name="venueId" required defaultValue="" className={INPUT_CLASS}>
+            <select
+              name="venueId"
+              required
+              value={venueId}
+              onChange={(e) => setVenueId(e.target.value)}
+              className={INPUT_CLASS}
+            >
               <option value="" disabled>
                 Selecciona una cancha
               </option>
@@ -62,11 +144,24 @@ export function NuevaReservaDrawer({
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm font-medium text-gray-700">
               Fecha *
-              <input type="date" name="date" required defaultValue={defaultDate} className={INPUT_CLASS} />
+              <input
+                type="date"
+                name="date"
+                required
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className={INPUT_CLASS}
+              />
             </label>
             <label className="text-sm font-medium text-gray-700">
               Hora inicio *
-              <select name="startTime" required defaultValue="" className={INPUT_CLASS}>
+              <select
+                name="startTime"
+                required
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className={INPUT_CLASS}
+              >
                 <option value="" disabled>
                   Elige la hora
                 </option>
@@ -89,59 +184,100 @@ export function NuevaReservaDrawer({
           </label>
 
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-sm font-medium text-gray-700">
+            <label className="relative text-sm font-medium text-gray-700">
               Cliente *
-              <input type="text" name="customerName" required minLength={2} placeholder="Nombre" className={INPUT_CLASS} />
+              <input
+                type="text"
+                name="customerName"
+                required
+                minLength={2}
+                placeholder="Nombre"
+                autoComplete="off"
+                value={nameInput}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                className={INPUT_CLASS}
+              />
+              {showSuggestions && suggestions.length > 0 && (
+                <ul className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                  {suggestions.map((suggestion) => (
+                    <li key={suggestion.phone}>
+                      <button
+                        type="button"
+                        onClick={() => pickSuggestion(suggestion)}
+                        className="block w-full px-3 py-2 text-left text-sm font-normal text-gray-700 hover:bg-gray-50"
+                      >
+                        <span className="block font-medium text-gray-900">{suggestion.name}</span>
+                        <span className="block text-xs text-gray-500">{suggestion.phone}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </label>
             <label className="text-sm font-medium text-gray-700">
-              Teléfono *
-              <input type="tel" name="customerPhone" required minLength={7} placeholder="3001234567" className={INPUT_CLASS} />
+              Teléfono
+              <input
+                type="tel"
+                name="customerPhone"
+                placeholder="3001234567 (opcional)"
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                className={INPUT_CLASS}
+              />
             </label>
           </div>
 
           <label className="text-sm font-medium text-gray-700">
-            Estado *
-            <select name="status" required defaultValue="CONFIRMADA" className={`${INPUT_CLASS} font-medium text-emerald-700`}>
-              <option value="CONFIRMADA">Confirmada</option>
-              <option value="PENDIENTE_PAGO">Pendiente de pago</option>
-            </select>
+            Precio de esta reserva
+            <input
+              type="number"
+              inputMode="numeric"
+              name="totalAmount"
+              min={0}
+              value={totalManuallyEdited ? totalInput : String(computedPrice)}
+              onChange={(e) => {
+                setTotalManuallyEdited(true);
+                setTotalInput(e.target.value);
+              }}
+              className={INPUT_CLASS}
+            />
+            <span className="mt-1 block text-xs text-gray-400">
+              Se calcula solo según la tarifa de la cancha (incluye excepciones de precio si aplican) — edítalo si
+              necesitas ajustarlo para esta reserva.
+            </span>
           </label>
 
-          <div>
-            <span className="text-sm font-medium text-gray-700">Pago *</span>
-            <div className="mt-1 flex gap-2">
-              <label className="flex-1">
-                <input type="radio" name="paymentToggle" value="pendiente" defaultChecked className="peer sr-only" />
-                <span
-                  className="block cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-center text-sm
-                    font-medium text-gray-600 peer-checked:border-amber-500 peer-checked:bg-amber-50
-                    peer-checked:text-amber-700"
-                >
-                  Pendiente
-                </span>
-              </label>
-              <label className="flex-1">
-                <input type="radio" name="paymentToggle" value="pagado" className="peer sr-only" />
-                <span
-                  className="block cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-center text-sm
-                    font-medium text-gray-600 peer-checked:border-emerald-600 peer-checked:bg-emerald-50
-                    peer-checked:text-emerald-700"
-                >
-                  Pagado
-                </span>
-              </label>
-            </div>
-          </div>
+          <label className="text-sm font-medium text-gray-700">
+            Abono recibido
+            <input
+              type="number"
+              inputMode="numeric"
+              name="depositAmount"
+              min={0}
+              value={depositInput}
+              onChange={(e) => setDepositInput(e.target.value)}
+              className={INPUT_CLASS}
+            />
+            <span className="mt-1 flex items-center gap-2 text-xs text-gray-400">
+              El estado de pago se calcula solo: $0 → sin pago, menos que el precio → abonada, el precio completo
+              (o más) → pagada.
+            </span>
+            <span className={`mt-2 inline-block rounded-full px-2.5 py-1 text-xs font-medium ${paymentBadgeClass}`}>
+              Queda como: {paymentLabel}
+            </span>
+          </label>
 
-          <div className="rounded-md bg-gray-50 p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">Total estimado</span>
-              <span className="text-lg font-semibold text-gray-900">${estimatedTotal.toLocaleString("es-CO")}</span>
-            </div>
-            <p className="mt-1 text-xs text-gray-400">
-              Según la tarifa de la cancha seleccionada — se calcula con el precio real al guardar.
-            </p>
-          </div>
+          <label className="text-sm font-medium text-gray-700">
+            Soporte de pago (opcional)
+            <input
+              type="file"
+              name="receipt"
+              accept="image/*,application/pdf"
+              className="mt-1 w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border file:border-gray-300 file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium file:text-gray-700"
+            />
+          </label>
 
           <div className="mt-2 flex items-center gap-3 border-t border-gray-100 pt-4">
             <SubmitButton
@@ -150,9 +286,9 @@ export function NuevaReservaDrawer({
             >
               Crear reserva
             </SubmitButton>
-            <Link href={closeHref} className="text-sm text-gray-500 hover:underline">
+            <button type="button" onClick={onClose} className="text-sm text-gray-500 hover:underline">
               Cancelar
-            </Link>
+            </button>
           </div>
         </form>
       </div>

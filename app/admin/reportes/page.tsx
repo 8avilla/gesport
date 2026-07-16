@@ -1,20 +1,45 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { getPaymentMethodBreakdown, getRevenueReport } from "@/lib/admin/queries";
+import { getBookingsReport, getPaymentMethodBreakdown, getRevenueReport } from "@/lib/admin/queries";
 import { requireAdminSession } from "@/lib/auth/session-guards";
+import { BookingStatus } from "@/lib/booking/state-machine";
+import { todayBusinessDate } from "@/lib/time/business-day";
+import { VENUE_TYPE_LABEL } from "@/lib/venues/type-info";
 import { RevenueBarChart, StatusDonutChart } from "../DashboardCharts";
+import { BookingsReportTable } from "./BookingsReportTable";
 
 const RANGE_OPTIONS = [7, 14, 30, 90];
 const DEFAULT_DAYS = 14;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default async function ReportesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ dias?: string }>;
+  searchParams: Promise<{
+    dias?: string;
+    repFrom?: string;
+    repTo?: string;
+    repVenue?: string;
+    repType?: string;
+    repStatus?: string;
+    repMetodo?: string;
+    repName?: string;
+    repPhone?: string;
+  }>;
 }) {
   const { orgSlug } = await requireAdminSession();
-  const { dias } = await searchParams;
+  const {
+    dias,
+    repFrom,
+    repTo,
+    repVenue,
+    repType,
+    repStatus,
+    repMetodo,
+    repName,
+    repPhone,
+  } = await searchParams;
   const days = RANGE_OPTIONS.includes(Number(dias)) ? Number(dias) : DEFAULT_DAYS;
 
   const organization = await db.organization.findUnique({ where: { slug: orgSlug } });
@@ -22,9 +47,41 @@ export default async function ReportesPage({
     notFound();
   }
 
-  const [report, paymentBreakdown] = await Promise.all([
+  const venues = await db.venue.findMany({ where: { orgId: organization.id }, orderBy: { name: "asc" } });
+  const venueIds = new Set(venues.map((v) => v.id));
+
+  // Reporte de detalle: por defecto, mes en curso — el rango típico para "sacar cuentas".
+  const today = todayBusinessDate();
+  const defaultFrom = `${today.slice(0, 7)}-01`;
+  const reportDateFrom = repFrom && DATE_RE.test(repFrom) ? repFrom : defaultFrom;
+  const reportDateTo = repTo && DATE_RE.test(repTo) ? repTo : today;
+  const reportVenueId = repVenue && venueIds.has(repVenue) ? repVenue : undefined;
+  const reportType = repType && repType in VENUE_TYPE_LABEL ? repType : undefined;
+  const reportStatus =
+    repStatus && (Object.values(BookingStatus) as string[]).includes(repStatus)
+      ? (repStatus as BookingStatus)
+      : undefined;
+  const reportMetodo = repMetodo || undefined;
+  const reportName = repName?.trim() || undefined;
+  const reportPhone = repPhone?.trim() || undefined;
+
+  const hasReportFilters = Boolean(
+    repFrom || repTo || reportVenueId || reportType || reportStatus || reportMetodo || reportName || reportPhone,
+  );
+
+  const [report, paymentBreakdown, bookingsReport] = await Promise.all([
     getRevenueReport(organization.id, days),
     getPaymentMethodBreakdown(organization.id, days),
+    getBookingsReport(organization.id, {
+      dateFrom: reportDateFrom,
+      dateTo: reportDateTo,
+      venueId: reportVenueId,
+      type: reportType,
+      status: reportStatus,
+      paymentMethod: reportMetodo,
+      name: reportName,
+      phone: reportPhone,
+    }),
   ]);
 
   const totalCourts = report.reduce((sum, day) => sum + day.courtsTotal, 0);
@@ -136,6 +193,23 @@ export default async function ReportesPage({
         {/* Aviso de que hay más columnas a la derecha (ej. No-show) fuera de la vista en móvil. */}
         <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
       </div>
+
+      <BookingsReportTable
+        venues={venues}
+        rows={bookingsReport.rows}
+        truncated={bookingsReport.truncated}
+        filters={{
+          dateFrom: reportDateFrom,
+          dateTo: reportDateTo,
+          venueId: reportVenueId,
+          type: reportType,
+          status: reportStatus,
+          paymentMethod: reportMetodo,
+          name: reportName,
+          phone: reportPhone,
+        }}
+        hasActiveFilters={hasReportFilters}
+      />
     </main>
   );
 }

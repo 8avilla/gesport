@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
+import type { Prisma } from "@/lib/generated/prisma";
 import { BookingStatus, isBlockingStatus } from "@/lib/booking/state-machine";
 import { CLOSING_HOUR, OPENING_HOUR } from "@/lib/booking/availability";
+import { getVenueUnitIds } from "@/lib/booking/slot-locks";
 import { addBusinessDays, businessDayRange, businessTimeNow, todayBusinessDate } from "@/lib/time/business-day";
 
 const VENUE_STATS_WINDOW_DAYS = 30;
@@ -297,15 +299,30 @@ export interface AgendaBooking {
   id: string;
   venueId: string;
   customerName: string;
+  customerPhone: string;
   startTime: string;
   endTime: string;
   status: BookingStatus;
   recurringBookingId: string | null;
+  // Para derivar el estado de pago (getPaymentState, lib/booking/status-display.ts) en la agenda.
+  totalAmount: number;
+  depositAmount: number;
+  receiptUrl: string | null;
+}
+
+// Una cancha combinada (Venue.linkedVenueIds, ej. F9 armada sobre F7-A+F7-B) queda bloqueada sin
+// tener Booking propio cuando se reserva alguna de sus canchas físicas, y viceversa — ver
+// lib/booking/slot-locks.ts. La grilla de agenda necesita mostrar ESE bloqueo (no un "+Libre"
+// engañoso) aunque no haya una reserva real para esa cancha a esa hora.
+export interface AgendaBlockedSlot {
+  venueName: string;
+  customerName: string;
 }
 
 export interface AgendaData {
   venues: AgendaVenue[];
   bookingsByVenue: Record<string, AgendaBooking[]>;
+  blockedByComboByVenue: Record<string, Record<string, AgendaBlockedSlot>>;
 }
 
 // Datos de la vista agenda (grid canchas × horas) para un solo día — incluye reservas canceladas
@@ -321,6 +338,8 @@ export async function getAgendaBookings(orgId: string, dateIso: string): Promise
     }),
   ]);
 
+  const venueById = new Map(venues.map((v) => [v.id, v]));
+
   const bookingsByVenue: Record<string, AgendaBooking[]> = {};
   for (const venue of venues) {
     bookingsByVenue[venue.id] = [];
@@ -330,16 +349,62 @@ export async function getAgendaBookings(orgId: string, dateIso: string): Promise
       id: booking.id,
       venueId: booking.venueId,
       customerName: booking.customerName,
+      customerPhone: booking.customerPhone,
       startTime: booking.startTime,
       endTime: booking.endTime,
       status: booking.status,
       recurringBookingId: booking.recurringBookingId,
+      totalAmount: booking.totalAmount,
+      depositAmount: booking.depositAmount,
+      receiptUrl: booking.receiptUrl,
     });
+  }
+
+  // Qué unitId físico queda ocupado a cada hora y por cuál reserva/cancha, para la cancha combinada
+  // hermana. Solo CONFIRMADA/EN_CURSO cuentan acá (a propósito NO isBlockingStatus, que también
+  // incluye PENDIENTE_PAGO) — la agenda muestra una reserva PENDIENTE_PAGO propia como "+ Libre"
+  // (ver AgendaGrid.tsx), así que por consistencia tampoco debe bloquear a su cancha combinada
+  // hermana con un "🔒 Combinada" por una reserva que ni siquiera se ve como ocupada en su propia
+  // cancha. La protección real contra doble reserva (SlotLock/blockingSlotKey) no depende de esto —
+  // sigue intacta, esto es solo qué se muestra.
+  type Occupant = { venueId: string; venueName: string; customerName: string };
+  const physicalOccupancyByUnit = new Map<string, Map<string, Occupant>>();
+  for (const booking of bookings) {
+    if (booking.status !== BookingStatus.CONFIRMADA && booking.status !== BookingStatus.EN_CURSO) continue;
+    const bookingVenue = venueById.get(booking.venueId);
+    if (!bookingVenue) continue;
+
+    for (const unitId of getVenueUnitIds(bookingVenue)) {
+      const byHour = physicalOccupancyByUnit.get(unitId) ?? new Map();
+      byHour.set(booking.startTime, {
+        venueId: booking.venueId,
+        venueName: bookingVenue.name,
+        customerName: booking.customerName,
+      });
+      physicalOccupancyByUnit.set(unitId, byHour);
+    }
+  }
+
+  const blockedByComboByVenue: Record<string, Record<string, AgendaBlockedSlot>> = {};
+  for (const venue of venues) {
+    const blocked: Record<string, AgendaBlockedSlot> = {};
+    for (const unitId of getVenueUnitIds(venue)) {
+      const byHour = physicalOccupancyByUnit.get(unitId);
+      if (!byHour) continue;
+      for (const [startTime, occupant] of byHour) {
+        if (occupant.venueId === venue.id) continue; // reserva propia, ya se muestra normal
+        blocked[startTime] = { venueName: occupant.venueName, customerName: occupant.customerName };
+      }
+    }
+    if (Object.keys(blocked).length > 0) {
+      blockedByComboByVenue[venue.id] = blocked;
+    }
   }
 
   return {
     venues: venues.map((v) => ({ id: v.id, name: v.name, type: v.type, capacity: v.capacity })),
     bookingsByVenue,
+    blockedByComboByVenue,
   };
 }
 
@@ -352,6 +417,8 @@ export interface UpcomingBooking {
   startTime: string;
   endTime: string;
   status: BookingStatus;
+  totalAmount: number;
+  depositAmount: number;
 }
 
 // Lista "Próximas reservas" bajo la agenda: si se está viendo el día de hoy, solo turnos que aún no
@@ -381,5 +448,263 @@ export async function getUpcomingBookings(orgId: string, dateIso: string, limit 
     startTime: b.startTime,
     endTime: b.endTime,
     status: b.status,
+    totalAmount: b.totalAmount,
+    depositAmount: b.depositAmount,
   }));
+}
+
+export interface BookingReportRow {
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  startTime: string;
+  endTime: string;
+  venueName: string;
+  venueType: string;
+  customerName: string;
+  customerPhone: string;
+  status: BookingStatus;
+  // Canal registrado: settlementMethod (saldo+consumo al cerrar cuenta) o, si aún no se cerró,
+  // paymentMethod (canal del abono inicial) — son enums disjuntos, nunca compiten por el mismo campo.
+  paymentMethodLabel: string;
+  totalAmount: number;
+  consumptionTotal: number;
+  // Lo efectivamente cobrado hasta ahora — mismo criterio que getReservasStatCards/getRevenueReport
+  // (solo CONFIRMADA/EN_CURSO/FINALIZADA cuentan como plata real): abono para las que siguen abiertas,
+  // total + consumo para las ya cerradas, $0 para pendientes/canceladas/no-show/expiradas.
+  totalPaid: number;
+}
+
+export interface BookingReportFilters {
+  dateFrom?: string;
+  dateTo?: string;
+  venueId?: string;
+  type?: string;
+  status?: BookingStatus;
+  paymentMethod?: string;
+  name?: string;
+  phone?: string;
+}
+
+const SETTLEMENT_METHOD_LABEL: Record<string, string> = {
+  EFECTIVO: "Efectivo",
+  TRANSFERENCIA: "Transferencia",
+  DATAFONO: "Datáfono",
+};
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  BOLD: "Bold",
+  COMPROBANTE_MANUAL: "Comprobante manual",
+};
+
+export const REPORT_LIST_LIMIT = 500;
+
+// Lo efectivamente cobrado hasta ahora en una reserva — mismo criterio en todo /admin/reportes y
+// /admin/clientes (solo CONFIRMADA/EN_CURSO/FINALIZADA cuentan como plata real, igual que
+// getReservasStatCards): abono para las que siguen abiertas, total + consumo para las ya cerradas,
+// $0 para pendientes/canceladas/no-show/expiradas (nunca se cobró nada en firme).
+function computeAmountPaid(booking: { status: BookingStatus; totalAmount: number; consumptionTotal: number; depositAmount: number }): number {
+  if (booking.status === BookingStatus.FINALIZADA) {
+    return booking.totalAmount + booking.consumptionTotal;
+  }
+  if (booking.status === BookingStatus.CONFIRMADA || booking.status === BookingStatus.EN_CURSO) {
+    return booking.depositAmount;
+  }
+  return 0;
+}
+
+// Listado a nivel de reserva individual (no agregado por día como getRevenueReport) para que el
+// admin pueda "sacar cuentas": fecha, hora, cancha, cliente, método de pago y lo cobrado, con
+// filtros. Vive separado de getRevenueReport porque ese resume por día para el gráfico — esto es la
+// data cruda detrás, para auditar/conciliar caso por caso.
+export async function getBookingsReport(
+  orgId: string,
+  filters: BookingReportFilters,
+): Promise<{ rows: BookingReportRow[]; truncated: boolean }> {
+  const where: Prisma.BookingWhereInput = { orgId };
+  if (filters.dateFrom || filters.dateTo) {
+    where.date = {
+      ...(filters.dateFrom ? { gte: businessDayRange(filters.dateFrom).start } : {}),
+      ...(filters.dateTo ? { lt: businessDayRange(filters.dateTo).end } : {}),
+    };
+  }
+  if (filters.venueId) where.venueId = filters.venueId;
+  if (filters.type) where.venue = { type: filters.type as Prisma.EnumVenueTypeFilter["equals"] };
+  if (filters.status) where.status = filters.status;
+  if (filters.paymentMethod) {
+    where.OR = [
+      { settlementMethod: filters.paymentMethod as Prisma.EnumSettlementMethodNullableFilter["equals"] },
+      { paymentMethod: filters.paymentMethod as Prisma.EnumPaymentMethodNullableFilter["equals"] },
+    ];
+  }
+  if (filters.name?.trim()) where.customerName = { contains: filters.name.trim(), mode: "insensitive" };
+  if (filters.phone?.trim()) where.customerPhone = { contains: filters.phone.trim(), mode: "insensitive" };
+
+  const bookings = await db.booking.findMany({
+    where,
+    include: { venue: true },
+    orderBy: [{ date: "desc" }, { startTime: "desc" }],
+    take: REPORT_LIST_LIMIT,
+  });
+
+  const rows = bookings.map((b) => {
+    const paymentMethodLabel = b.settlementMethod
+      ? SETTLEMENT_METHOD_LABEL[b.settlementMethod]
+      : b.paymentMethod
+        ? PAYMENT_METHOD_LABEL[b.paymentMethod]
+        : "—";
+
+    const totalPaid = computeAmountPaid(b);
+
+    return {
+      id: b.id,
+      date: b.date.toISOString().slice(0, 10),
+      startTime: b.startTime,
+      endTime: b.endTime,
+      venueName: b.venue.name,
+      venueType: b.venue.type,
+      customerName: b.customerName || "Sin nombre",
+      customerPhone: b.customerPhone,
+      status: b.status,
+      paymentMethodLabel,
+      totalAmount: b.totalAmount,
+      consumptionTotal: b.consumptionTotal,
+      totalPaid,
+    };
+  });
+
+  return { rows, truncated: bookings.length === REPORT_LIST_LIMIT };
+}
+
+export interface CustomerRow {
+  phone: string;
+  name: string;
+  email: string | null;
+  bookingsCount: number;
+  cancelledCount: number;
+  noShowCount: number;
+  totalSpent: number;
+  firstBookingDate: string; // "YYYY-MM-DD"
+  lastBookingDate: string;
+}
+
+export interface CustomersStats {
+  totalCustomers: number;
+  newThisMonth: number;
+  totalSpent: number;
+  avgSpentPerCustomer: number;
+}
+
+export interface CustomersFilters {
+  search?: string; // nombre o teléfono, contains
+  sort?: "reciente" | "reservas" | "gastado" | "nombre";
+}
+
+export const CUSTOMER_LIST_LIMIT = 300;
+
+// Clientes agrupados por teléfono (identificador estable — el nombre puede variar de tipeo entre
+// reservas de la misma persona). Deliberadamente NO usa el modelo Customer (lib/db): ese es global
+// entre organizaciones (login de "Mis reservas" por WhatsApp, sin orgId) y no sirve para un CRM por
+// tenant — acá agregamos directo sobre Booking, que sí está acotado a orgId. Trae todas las reservas
+// de la organización para agrupar en JS (mismo patrón que getReservasStatCards); a la escala de un
+// solo complejo deportivo esto es liviano.
+export async function getCustomersReport(
+  orgId: string,
+  filters: CustomersFilters,
+): Promise<{ customers: CustomerRow[]; stats: CustomersStats; truncated: boolean }> {
+  const bookings = await db.booking.findMany({
+    where: { orgId },
+    select: {
+      customerName: true,
+      customerPhone: true,
+      customerEmail: true,
+      date: true,
+      status: true,
+      totalAmount: true,
+      consumptionTotal: true,
+      depositAmount: true,
+    },
+    orderBy: { date: "asc" },
+  });
+
+  type Group = {
+    name: string;
+    email: string | null;
+    phone: string;
+    bookingsCount: number;
+    cancelledCount: number;
+    noShowCount: number;
+    totalSpent: number;
+    firstDate: string;
+    lastDate: string;
+  };
+  const groups = new Map<string, Group>();
+
+  for (const b of bookings) {
+    if (!b.customerPhone) continue;
+    const dateIso = b.date.toISOString().slice(0, 10);
+    const existing = groups.get(b.customerPhone);
+    const spent = computeAmountPaid(b);
+
+    if (!existing) {
+      groups.set(b.customerPhone, {
+        name: b.customerName || "Sin nombre",
+        email: b.customerEmail,
+        phone: b.customerPhone,
+        bookingsCount: 1,
+        cancelledCount: b.status === BookingStatus.CANCELADA ? 1 : 0,
+        noShowCount: b.status === BookingStatus.NO_SHOW ? 1 : 0,
+        totalSpent: spent,
+        firstDate: dateIso,
+        lastDate: dateIso,
+      });
+    } else {
+      existing.bookingsCount += 1;
+      if (b.status === BookingStatus.CANCELADA) existing.cancelledCount += 1;
+      if (b.status === BookingStatus.NO_SHOW) existing.noShowCount += 1;
+      existing.totalSpent += spent;
+      existing.lastDate = dateIso; // bookings vienen ordenadas asc por fecha, así que la última pisa
+      if (b.customerName) existing.name = b.customerName; // se queda con el nombre más reciente
+      if (b.customerEmail) existing.email = b.customerEmail;
+    }
+  }
+
+  let customers = Array.from(groups.values()).map((g) => ({
+    phone: g.phone,
+    name: g.name,
+    email: g.email,
+    bookingsCount: g.bookingsCount,
+    cancelledCount: g.cancelledCount,
+    noShowCount: g.noShowCount,
+    totalSpent: g.totalSpent,
+    firstBookingDate: g.firstDate,
+    lastBookingDate: g.lastDate,
+  }));
+
+  const totalCustomers = customers.length;
+  const totalSpentAll = customers.reduce((sum, c) => sum + c.totalSpent, 0);
+  const monthPrefix = todayBusinessDate().slice(0, 7);
+  const newThisMonth = customers.filter((c) => c.firstBookingDate.slice(0, 7) === monthPrefix).length;
+
+  const stats: CustomersStats = {
+    totalCustomers,
+    newThisMonth,
+    totalSpent: totalSpentAll,
+    avgSpentPerCustomer: totalCustomers > 0 ? Math.round(totalSpentAll / totalCustomers) : 0,
+  };
+
+  const search = filters.search?.trim().toLowerCase();
+  if (search) {
+    customers = customers.filter(
+      (c) => c.name.toLowerCase().includes(search) || c.phone.toLowerCase().includes(search),
+    );
+  }
+
+  customers.sort((a, b) => {
+    if (filters.sort === "reservas") return b.bookingsCount - a.bookingsCount;
+    if (filters.sort === "gastado") return b.totalSpent - a.totalSpent;
+    if (filters.sort === "nombre") return a.name.localeCompare(b.name);
+    return b.lastBookingDate.localeCompare(a.lastBookingDate); // "reciente" (default)
+  });
+
+  const truncated = customers.length > CUSTOMER_LIST_LIMIT;
+  return { customers: customers.slice(0, CUSTOMER_LIST_LIMIT), stats, truncated };
 }

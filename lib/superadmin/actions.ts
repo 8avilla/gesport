@@ -92,5 +92,5 @@ export async function selectAdminOrg(formData: FormData): Promise<void> {
     path: "/",
   });
 
-  redirect("/admin");
+  redirect("/admin/reservas");
 }

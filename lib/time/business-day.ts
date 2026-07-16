@@ -58,3 +58,23 @@ export function formatBusinessDayLabel(dateIso: string): { weekday: string; day:
     month: MONTH_FORMATTER.format(date).replace(".", ""),
   };
 }
+
+export interface QuickDateOption {
+  date: string;
+  label: string;
+}
+
+// Chips de "fecha rápida" para formularios donde casi siempre se reserva con unos días de
+// anticipación (Nueva reserva, wizard de recurrentes) — evita que el admin tenga que abrir el
+// datepicker nativo y navegar mes a mes para una fecha que en la práctica está a menos de una
+// semana. `todayIso` se pasa desde el servidor (todayBusinessDate()) en vez de calcularse en el
+// cliente, para no depender del reloj/zona horaria del navegador del admin.
+export function buildQuickDateOptions(todayIso: string, days = 7): QuickDateOption[] {
+  return Array.from({ length: days + 1 }, (_, i) => {
+    const date = addBusinessDays(todayIso, i);
+    if (i === 0) return { date, label: "Hoy" };
+    if (i === 1) return { date, label: "Mañana" };
+    const { weekday, day } = formatBusinessDayLabel(date);
+    return { date, label: `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${day}` };
+  });
+}

@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { db } from "../lib/db";
 
-const SEED_PASSWORD = "sportarena123";
+const SEED_PASSWORD = "cuna2026";
 
 async function main() {
   const organization = await db.organization.upsert({
@@ -18,9 +18,9 @@ async function main() {
   });
 
   const venues = [
-    { name: "Cancha 1 — Fútbol 5", type: "FUTBOL_5" as const, hourlyRate: 120_000 },
-    { name: "Cancha 2 — Fútbol 8", type: "FUTBOL_8" as const, hourlyRate: 180_000 },
-    { name: "Cancha 3 — Pádel", type: "PADEL" as const, hourlyRate: 60_000 },
+    { name: "Cancha 1 — Fútbol 7", type: "FUTBOL_7" as const, hourlyRate: 160_000 },
+    { name: "Cancha 2 — Fútbol 7", type: "FUTBOL_7" as const, hourlyRate: 160_000 },
+    { name: "Cancha 3 — Fútbol 9", type: "FUTBOL_9" as const, hourlyRate: 250_000 },
   ];
 
   for (const venue of venues) {
