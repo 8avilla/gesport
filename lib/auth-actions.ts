@@ -6,6 +6,21 @@ import { signIn, signOut } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
 
+// Destino post-login según rol — compartido entre loginAction (recién autenticado) y la página de
+// login (ya tenía sesión y no necesita volver a loguearse, ver app/login/page.tsx).
+export async function resolvePostLoginDestination(user: { role: string; orgId?: string | null }): Promise<string> {
+  if (user.role === "SUPERADMIN") {
+    return "/superadmin";
+  }
+  // EMPLOYEE no tiene acceso al panel admin — su pantalla por defecto es POS (ver proxy.ts, que
+  // bloquea /admin para cualquier rol distinto de ADMIN/SUPERADMIN).
+  if (user.role === "ADMIN") {
+    return "/admin/reservas";
+  }
+  const organization = user.orgId ? await db.organization.findUnique({ where: { id: user.orgId } }) : null;
+  return `/${organization?.slug}/pos`;
+}
+
 export async function loginAction(formData: FormData): Promise<void> {
   const rawCallbackUrl = String(formData.get("callbackUrl") || "/");
   // "/" es el buscador público, no una pantalla de staff — tratarlo como "no pidieron una página en
@@ -42,16 +57,10 @@ export async function loginAction(formData: FormData): Promise<void> {
   // (la segunda vez ya es un request nuevo, con la cookie puesta). En vez de depender de esa
   // relectura, resolvemos el destino con los mismos datos que authorize() ya validó.
   const user = await db.user.findUnique({ where: { email } });
-  if (user?.role === "SUPERADMIN") {
-    redirect("/superadmin");
+  if (!user) {
+    redirect("/login");
   }
-  // EMPLOYEE no tiene acceso al panel admin — su pantalla por defecto es POS (ver proxy.ts, que
-  // bloquea /admin para cualquier rol distinto de ADMIN/SUPERADMIN).
-  if (user?.role === "ADMIN") {
-    redirect("/admin/reservas");
-  }
-  const organization = user?.orgId ? await db.organization.findUnique({ where: { id: user.orgId } }) : null;
-  redirect(`/${organization?.slug}/pos`);
+  redirect(await resolvePostLoginDestination(user));
 }
 
 // No había ningún punto de salida en toda la app — signOut estaba exportado desde lib/auth.ts pero

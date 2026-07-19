@@ -1,5 +1,7 @@
 import Image from "next/image";
-import { loginAction } from "@/lib/auth-actions";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { loginAction, resolvePostLoginDestination } from "@/lib/auth-actions";
 
 const ERROR_MESSAGES: Record<string, string> = {
   credenciales_invalidas: "Email o contraseña incorrectos.",
@@ -12,6 +14,14 @@ export default async function LoginPage({
   searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
   const { callbackUrl, error } = await searchParams;
+
+  // Si ya hay sesión activa, no tiene sentido mostrarle el formulario de nuevo — lo mandamos directo
+  // a donde iba (callbackUrl) o al destino por defecto de su rol, mismo criterio que loginAction usa
+  // justo después de loguearse.
+  const session = await auth();
+  if (session?.user) {
+    redirect(callbackUrl && callbackUrl !== "/" ? callbackUrl : await resolvePostLoginDestination(session.user));
+  }
 
   return (
     <main className="mx-auto max-w-sm px-4 py-16">
