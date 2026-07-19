@@ -20,6 +20,7 @@ import {
   computeBlockingSlotKey,
   computeCancellationOutcome,
   computeReleasedSlotKey,
+  computeSolicitudSlotKey,
   isContactComplete,
   type CancellationOutcome,
 } from "./state-machine";
@@ -47,6 +48,11 @@ export type CreateBookingResult =
       totalAmount: number;
       depositAmount: number;
       boldPayload: BoldCheckoutPayload | null;
+      // false = cancha en modo "Solicitud sin pago" (Venue.requiresPayment) — ReservarForm usa esto
+      // para mostrar el botón "Enviar solicitud" en vez de Bold/comprobante. No se puede inferir de
+      // boldPayload === null, porque eso también pasa cuando Bold simplemente no está configurado a
+      // nivel plataforma (cae a comprobante manual).
+      requiresPayment: boolean;
     }
   | { ok: false; error: "cupo_no_disponible" | "demasiados_intentos" };
 
@@ -130,16 +136,17 @@ export async function createBookingShell(input: {
     throw error;
   }
 
-  const boldPayload = isBoldConfigured()
-    ? buildCheckoutPayload({
-        orderId: bookingId,
-        amount: depositAmount,
-        description: `Abono reserva ${venue.name} ${data.date}`,
-        redirectionUrl: `${await getBaseUrl()}/${org.slug}/reserva/${bookingId}`,
-      })
-    : null;
+  const boldPayload =
+    venue.requiresPayment && isBoldConfigured()
+      ? buildCheckoutPayload({
+          orderId: bookingId,
+          amount: depositAmount,
+          description: `Abono reserva ${venue.name} ${data.date}`,
+          redirectionUrl: `${await getBaseUrl()}/${org.slug}/reserva/${bookingId}`,
+        })
+      : null;
 
-  return { ok: true, bookingId, totalAmount: price, depositAmount, boldPayload };
+  return { ok: true, bookingId, totalAmount: price, depositAmount, boldPayload, requiresPayment: venue.requiresPayment };
 }
 
 const updateContactSchema = z.object({
@@ -241,6 +248,60 @@ export async function uploadManualReceipt(formData: FormData): Promise<void> {
   redirect(`/${orgSlug}/reserva/${bookingId}?comprobante=enviado`);
 }
 
+const submitBookingRequestSchema = z.object({
+  bookingId: z.string().min(1),
+  orgSlug: z.string().min(1),
+});
+
+// Paso "Enviar solicitud" para canchas con Venue.requiresPayment=false (mismo patrón que
+// uploadManualReceipt, pero sin comprobante). La reserva nace PENDIENTE_PAGO (con blockingSlotKey
+// real, igual que cualquier otra) para que createBookingShell no tenga que saber todavía nombre/
+// teléfono — este es el momento donde de verdad se libera el cupo real (SOLICITADA nunca bloquea) y
+// se avisa al admin. Ver decisión en el plan: marcar SOLICITADA desde createBookingShell mandaría el
+// aviso con datos vacíos y cortaría al cliente del formulario a mitad de tipeo (poll de status en
+// ReservarForm).
+export async function submitBookingRequest(formData: FormData): Promise<void> {
+  const parsed = submitBookingRequestSchema.safeParse({
+    bookingId: formData.get("bookingId"),
+    orgSlug: formData.get("orgSlug"),
+  });
+  if (!parsed.success) {
+    notFound();
+  }
+
+  const { bookingId, orgSlug } = parsed.data;
+
+  const ip = await getClientIp();
+  if (!checkRateLimit(`enviar-solicitud:${ip}`, 10, 10 * 60_000)) {
+    redirect(`/${orgSlug}/reserva/${bookingId}?error=demasiados_intentos`);
+  }
+
+  const booking = await db.booking.findUnique({ where: { id: bookingId } });
+  if (!booking || booking.status !== BookingStatus.PENDIENTE_PAGO) {
+    notFound();
+  }
+
+  if (!isContactComplete(booking.customerName, booking.customerPhone)) {
+    redirect(`/${orgSlug}/reserva/${bookingId}?error=datos_incompletos`);
+  }
+
+  await db.booking.update({
+    where: { id: bookingId },
+    data: {
+      status: BookingStatus.SOLICITADA,
+      blockingSlotKey: computeSolicitudSlotKey(bookingId),
+      depositAmount: 0,
+    },
+  });
+  // El hold PENDIENTE_PAGO sí pudo reclamar SlotLock reales (canchas combinables) — hay que
+  // soltarlos, una solicitud no debe bloquear nada.
+  await releaseSlotLocks(bookingId);
+
+  await notifyBookingRequestSubmitted(booking);
+
+  redirect(`/${orgSlug}/reserva/${bookingId}`);
+}
+
 const cancelByCustomerSchema = z.object({
   orgSlug: z.string().min(1),
   bookingId: z.string().min(1),
@@ -326,7 +387,9 @@ export async function confirmBookingPayment(bookingId: string, boldPaymentRef?: 
 // Correo con los datos de la reserva al confirmarse el pago — al cliente (si dejó email, es
 // opcional) y en paralelo al admin del complejo (negocio.md: "notificando en paralelo a la
 // recepción"). Un fallo de Mailgun no debe tumbar la confirmación del pago, por eso va aislado.
-async function sendBookingConfirmedEmails(booking: {
+// Exportada para que confirmSolicitud (lib/admin/actions.ts) la reuse al confirmar una solicitud —
+// mismo correo de "reserva confirmada", sin duplicar el envío.
+export async function sendBookingConfirmedEmails(booking: {
   id: string;
   orgId: string;
   venueId: string;
@@ -380,6 +443,47 @@ async function sendBookingConfirmedEmails(booking: {
     ]);
   } catch (error) {
     console.error("[booking] error enviando correos de confirmación", error);
+  }
+}
+
+// Aviso al admin de una solicitud sin pago recién enviada (submitBookingRequest arriba) — necesita
+// confirmar o rechazar a mano, no es un "reserva confirmada" como sendBookingConfirmedEmails.
+// Aislado en try/catch: un fallo de Mailgun no debe tumbar la solicitud, que ya se guardó.
+async function notifyBookingRequestSubmitted(booking: {
+  id: string;
+  orgId: string;
+  venueId: string;
+  customerName: string;
+  customerPhone: string;
+  date: Date;
+  startTime: string;
+  endTime: string;
+  totalAmount: number;
+}): Promise<void> {
+  try {
+    const [venue, admin] = await Promise.all([
+      db.venue.findUnique({ where: { id: booking.venueId } }),
+      db.user.findFirst({ where: { orgId: booking.orgId, role: "ADMIN" } }),
+    ]);
+    if (!venue || !admin) return;
+
+    const { weekday, day, month } = formatBusinessDayLabel(booking.date.toISOString().slice(0, 10));
+    const dateLabel = `${weekday} ${day} de ${month}`;
+    const confirmUrl = `${await getBaseUrl()}/admin/reservas`;
+
+    await NotificationService.sendNewBookingRequestAlertEmail({
+      adminEmail: admin.email,
+      customerName: booking.customerName,
+      customerPhone: booking.customerPhone,
+      venueName: venue.name,
+      dateLabel,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalAmount: booking.totalAmount,
+      confirmUrl,
+    });
+  } catch (error) {
+    console.error("[booking] error enviando aviso de solicitud", error);
   }
 }
 

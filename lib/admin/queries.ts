@@ -125,6 +125,36 @@ export async function getPendingPaymentBookings(orgId: string): Promise<PendingP
   }));
 }
 
+export interface PendingSolicitudBooking {
+  id: string;
+  venueName: string;
+  customerName: string;
+  dateIso: string;
+  startTime: string;
+}
+
+// A diferencia de getPendingPaymentBookings (acotado a "hoy" — un abono Bold pendiente es cosa del
+// día), una SOLICITADA puede ser para cualquier fecha futura y sigue necesitando que el admin
+// decida — por eso el rango es "desde hoy en adelante", sin tope superior.
+export async function getPendingSolicitudBookings(orgId: string): Promise<PendingSolicitudBooking[]> {
+  const { start } = businessDayRange(todayBusinessDate());
+
+  const bookings = await db.booking.findMany({
+    where: { orgId, date: { gte: start }, status: BookingStatus.SOLICITADA },
+    include: { venue: true },
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
+    take: 20,
+  });
+
+  return bookings.map((booking) => ({
+    id: booking.id,
+    venueName: booking.venue.name,
+    customerName: booking.customerName || "Sin nombre todavía",
+    dateIso: booking.date.toISOString().slice(0, 10),
+    startTime: booking.startTime,
+  }));
+}
+
 export interface AdminAlertCounts {
   lowStockCount: number;
   pendingPaymentCount: number;

@@ -30,6 +30,9 @@ const RECURRING_ERROR_MESSAGES: Record<string, string> = {
   recurrente_cupo_no_disponible:
     "Uno o más horarios de esa serie ya están ocupados. No se creó ninguna reserva — ajusta el " +
     "horario o el rango de fechas.",
+  // De confirmSolicitud (lib/admin/actions.ts) — alguien más tomó esa hora con una reserva real
+  // mientras la solicitud esperaba confirmación.
+  cupo_no_disponible: "Ese horario ya fue tomado por otra reserva mientras la solicitud esperaba — no se pudo confirmar.",
 };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -80,6 +83,7 @@ export default async function AdminReservasPage({
     recurrente?: string;
     cancelada?: string;
     pagoRegistrado?: string;
+    solicitudConfirmada?: string;
   }>;
 }) {
   const { orgSlug } = await requireAdminSession();
@@ -102,6 +106,7 @@ export default async function AdminReservasPage({
     recurrente,
     cancelada,
     pagoRegistrado,
+    solicitudConfirmada,
   } = params;
 
   const organization = await db.organization.findUnique({ where: { slug: orgSlug } });
@@ -342,6 +347,12 @@ export default async function AdminReservasPage({
           <span>Pago registrado correctamente.</span>
         </p>
       )}
+      {solicitudConfirmada === "1" && (
+        <p className="mt-4 flex items-start gap-2 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">
+          <span>✅</span>
+          <span>Solicitud confirmada — el horario quedó reservado.</span>
+        </p>
+      )}
 
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
@@ -380,6 +391,12 @@ export default async function AdminReservasPage({
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
               {STATUS_LABEL.CANCELADA}
+            </span>
+            {/* Solicitud sin pago (Venue.requiresPayment=false) tampoco es un estado de pago — no
+                bloquea el cupo hasta que el admin la confirme. */}
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-indigo-500" />
+              {STATUS_LABEL.SOLICITADA}
             </span>
           </div>
         )}

@@ -10,6 +10,7 @@ export const STATUS_LABEL: Record<string, string> = {
   CANCELADA: "Cancelada",
   NO_SHOW: "No-show",
   EXPIRADA: "Expirada",
+  SOLICITADA: "Solicitud sin pago",
 };
 
 // Hex, para contextos sin Tailwind (recharts, estilos inline en el grid de agenda).
@@ -21,6 +22,7 @@ export const STATUS_COLOR: Record<string, string> = {
   CANCELADA: "#ef4444",
   NO_SHOW: "#b91c1c",
   EXPIRADA: "#9ca3af",
+  SOLICITADA: "#6366f1",
 };
 
 // Clases Tailwind, para badges/pills.
@@ -32,6 +34,7 @@ export const STATUS_BADGE_STYLE: Record<string, string> = {
   CANCELADA: "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200",
   NO_SHOW: "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200",
   EXPIRADA: "bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-200",
+  SOLICITADA: "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200",
 };
 
 // Bloque de la agenda: color de fondo + texto suave (no el badge saturado) para que el nombre del
@@ -44,6 +47,7 @@ export const STATUS_BLOCK_STYLE: Record<string, string> = {
   CANCELADA: "border-red-300 bg-red-100 text-red-800",
   NO_SHOW: "border-red-300 bg-red-100 text-red-800",
   EXPIRADA: "border-gray-200 bg-gray-50 text-gray-500",
+  SOLICITADA: "border-indigo-300 bg-indigo-100 text-indigo-900",
 };
 
 export const STATUS_ICON: Record<string, string> = {
@@ -54,6 +58,7 @@ export const STATUS_ICON: Record<string, string> = {
   CANCELADA: "✕",
   NO_SHOW: "✕",
   EXPIRADA: "✕",
+  SOLICITADA: "📨",
 };
 
 // Los únicos 4 estados que la leyenda de la agenda muestra (mockup) — el resto (EN_CURSO, NO_SHOW,

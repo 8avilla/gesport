@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { cancelConfirmedBooking, registerBookingPayment } from "@/lib/admin/actions";
+import { cancelConfirmedBooking, confirmSolicitud, registerBookingPayment } from "@/lib/admin/actions";
 import { getPaymentState, PAYMENT_STATE_BADGE_STYLE, PAYMENT_STATE_LABEL, STATUS_BADGE_STYLE, STATUS_LABEL } from "@/lib/booking/status-display";
 import { VENUE_TYPE_ICON, VENUE_TYPE_LABEL } from "@/lib/venues/type-info";
 import { SubmitButton } from "@/app/components/SubmitButton";
@@ -173,6 +173,37 @@ export function VerReservaDrawer({ booking, onClose }: { booking: ViewBookingInf
                 Cancelar reserva
               </SubmitButton>
             </form>
+          )}
+
+          {booking.status === "SOLICITADA" && (
+            <div className="mt-5 grid gap-2">
+              <p className="text-xs text-gray-500">
+                Solicitud sin pago — no está apartada todavía. Confírmala para reclamar el horario.
+              </p>
+              <form action={confirmSolicitud}>
+                <input type="hidden" name="bookingId" value={booking.id} />
+                <input type="hidden" name="vista" value="agenda" />
+                <input type="hidden" name="fecha" value={booking.dateIso} />
+                <SubmitButton
+                  pendingLabel="Confirmando…"
+                  className="w-full rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+                >
+                  ✅ Confirmar solicitud
+                </SubmitButton>
+              </form>
+              <form action={cancelConfirmedBooking}>
+                <input type="hidden" name="bookingId" value={booking.id} />
+                <input type="hidden" name="vista" value="agenda" />
+                <input type="hidden" name="fecha" value={booking.dateIso} />
+                <SubmitButton
+                  confirmMessage="¿Rechazar esta solicitud?"
+                  pendingLabel="Rechazando…"
+                  className="w-full rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-100"
+                >
+                  Rechazar solicitud
+                </SubmitButton>
+              </form>
+            </div>
           )}
 
           <button type="button" onClick={onClose} className="mt-3 w-full text-center text-sm text-gray-500 hover:underline">

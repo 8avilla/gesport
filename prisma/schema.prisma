@@ -37,6 +37,10 @@ enum BookingStatus {
   CANCELADA
   NO_SHOW
   EXPIRADA
+  // Cancha con Venue.requiresPayment=false: el cliente mandó sus datos sin pagar abono. No bloquea
+  // el cupo (no entra en BLOCKING_STATUSES) — el admin debe confirmarla a mano para que sí lo
+  // reclame. Ver lib/booking/state-machine.ts.
+  SOLICITADA
 }
 
 enum PaymentMethod {
@@ -205,6 +209,12 @@ model Venue {
   capacity   Int?
   status     VenueStatus @default(ACTIVA)
 
+  // false = "Solicitud sin pago": el flujo público se salta abono/Bold/comprobante y crea la
+  // reserva como SOLICITADA (no bloquea el cupo) hasta que el admin la confirme a mano. Ver
+  // createBookingShell/submitBookingRequest (lib/booking/actions.ts) y confirmSolicitud
+  // (lib/admin/actions.ts).
+  requiresPayment Boolean @default(true)
+
   // Canchas combinables (ej. una de Fútbol 9 que también se usa como 2 de Fútbol 7): esta cancha no
   // tiene franja física propia, reclama las de las canchas listadas acá al reservarse (ver
   // lib/booking/slot-locks.ts). Vacío en las canchas "atómicas" (F7-A, F7-B), que sí son dueñas de
@@ -320,7 +330,9 @@ model Booking {
   // Anti-overbooking (negocio.md §6.3): mientras el estado bloquea el cupo (PENDIENTE_PAGO/CONFIRMADA/
   // EN_CURSO) vale "<venueId>_<date>_<startTime>"; Prisma en MongoDB no soporta índices únicos
   // sparse/parciales, así que al pasar a un estado terminal se reemplaza por "released_<bookingId>"
-  // (único por documento) para nunca chocar con el índice @unique de abajo.
+  // (único por documento) para nunca chocar con el índice @unique de abajo. SOLICITADA usa la misma
+  // idea con otro prefijo ("solicitud_<bookingId>", computeSolicitudSlotKey) — no es terminal (puede
+  // pasar a CONFIRMADA, que ahí sí reclama la clave real) pero tampoco debe bloquear el cupo.
   blockingSlotKey String @unique
 
   totalAmount   Int

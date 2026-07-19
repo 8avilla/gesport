@@ -60,6 +60,7 @@ function PreserveVenueFields({ venue }: { venue: Venue }) {
       <input type="hidden" name="hourlyRate" value={venue.hourlyRate} />
       <input type="hidden" name="capacity" value={venue.capacity ?? ""} />
       <input type="hidden" name="status" value={venue.status} />
+      <input type="hidden" name="requiresPayment" value={venue.requiresPayment ? "true" : "false"} />
       {venue.linkedVenueIds.map((id) => (
         <input key={id} type="hidden" name="linkedVenueIds" value={id} />
       ))}
@@ -600,6 +601,23 @@ export default async function VenueDetailPage({
                   <input type="number" inputMode="numeric" name="hourlyRate" min={0} required defaultValue={venue.hourlyRate} className="rounded-md border border-gray-300 px-3 py-2.5" />
                 </label>
               </div>
+
+              <label className="grid gap-1 text-sm">
+                Modo de reserva
+                <select
+                  name="requiresPayment"
+                  required
+                  defaultValue={venue.requiresPayment ? "true" : "false"}
+                  className="rounded-md border border-gray-300 px-3 py-2.5"
+                >
+                  <option value="true">Pago online (abono + Bold/comprobante)</option>
+                  <option value="false">Solicitud sin pago (el admin confirma manual)</option>
+                </select>
+                <span className="text-xs text-gray-500">
+                  En &ldquo;Solicitud sin pago&rdquo; el cliente no paga abono — la reserva no queda apartada
+                  hasta que la confirmes a mano desde Reservas.
+                </span>
+              </label>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="grid gap-1 text-sm">

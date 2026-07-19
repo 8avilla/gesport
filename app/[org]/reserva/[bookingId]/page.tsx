@@ -81,7 +81,10 @@ export default async function ReservaPage({
   const { weekday, day, month } = formatBusinessDayLabel(dateIso);
   const remainder = booking.totalAmount - booking.depositAmount;
   const showsPaymentStep =
-    booking.status === BookingStatus.PENDIENTE_PAGO && !booking.receiptUrl && !boldTxStatus;
+    booking.status === BookingStatus.PENDIENTE_PAGO &&
+    !booking.receiptUrl &&
+    !boldTxStatus &&
+    venue?.requiresPayment !== false;
 
   // Solo el dueño de la reserva (logueado en Mis reservas con el mismo WhatsApp) ve el botón de
   // cancelar. previewOutcome es solo para mostrarle si es reembolsable antes de confirmar — el
@@ -179,6 +182,37 @@ export default async function ReservaPage({
               </SubmitButton>
             </form>
           )}
+        </>
+      )}
+
+      {booking.status === BookingStatus.SOLICITADA && (
+        <>
+          <div className="mt-6 flex flex-col items-center text-center">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100 text-4xl">
+              📨
+            </span>
+            <h2 className="mt-3 text-lg font-semibold text-gray-900">Solicitud enviada</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Le avisamos al complejo sobre tu solicitud para el {weekday} {day} de {month} a las{" "}
+              {booking.startTime}.
+            </p>
+          </div>
+
+          <p className="mt-6 flex items-start gap-2 rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900">
+            <span>ℹ️</span>
+            <span>
+              Esta cancha no pide pago por adelantado — el complejo confirmará tu solicitud pronto. Esto{" "}
+              <strong>no garantiza el cupo</strong> todavía: si alguien más reserva ese horario primero, tu
+              solicitud podría no poder confirmarse.
+            </span>
+          </p>
+
+          <Link
+            href={`/${orgSlug}`}
+            className="mt-4 block rounded-md border border-gray-200 px-4 py-3 text-center text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Volver al inicio
+          </Link>
         </>
       )}
 

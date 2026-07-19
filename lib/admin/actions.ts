@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { ADMIN_ORG_COOKIE, requireAdminSession } from "@/lib/auth/session-guards";
-import { notifyBookingCancelled } from "@/lib/booking/actions";
+import { notifyBookingCancelled, sendBookingConfirmedEmails } from "@/lib/booking/actions";
 import { OPENING_HOUR, CLOSING_HOUR } from "@/lib/booking/availability";
 import { DAY_OF_WEEK_LABEL, resolveVenuePrice, rulesOverlap } from "@/lib/booking/pricing";
 import { buildWeeklyOccurrenceDates, MAX_RECURRING_OCCURRENCES } from "@/lib/booking/recurrence";
@@ -87,6 +87,9 @@ const updateVenueSchema = z.object({
   // un campo vacío se guardaría como capacity=0 en vez de quedar sin definir.
   capacity: z.literal("").transform(() => undefined).or(z.coerce.number().int().min(0)),
   status: z.enum(["ACTIVA", "MANTENIMIENTO", "INACTIVA"]),
+  // Igual que status: requerido, sin fallback — el form de la pestaña Fotos también pasa por este
+  // schema, así que PreserveVenueFields debe reenviarlo siempre (ver app/admin/canchas/[venueId]/page.tsx).
+  requiresPayment: z.enum(["true", "false"]).transform((v) => v === "true"),
   linkedVenueIds: z.array(z.string()).default([]),
   surface: z.string().trim().optional(),
   coverage: z.string().trim().optional(),
@@ -107,6 +110,7 @@ export async function updateVenue(formData: FormData): Promise<void> {
     hourlyRate: formData.get("hourlyRate"),
     capacity: formData.get("capacity"),
     status: formData.get("status"),
+    requiresPayment: formData.get("requiresPayment"),
     linkedVenueIds: formData.getAll("linkedVenueIds"),
     surface: formData.get("surface") ?? undefined,
     coverage: formData.get("coverage") ?? undefined,
@@ -177,6 +181,7 @@ export async function updateVenue(formData: FormData): Promise<void> {
       imageUrls: [...keptPhotos, ...uploadedUrls],
       capacity: parsed.data.capacity ?? null,
       status: parsed.data.status,
+      requiresPayment: parsed.data.requiresPayment,
       linkedVenueIds,
       surface: parsed.data.surface || null,
       coverage: parsed.data.coverage || null,
@@ -625,7 +630,11 @@ const cancelBookingSchema = z.object({
   fecha: optionalDateOrEmpty,
 });
 
-// negocio.md §6.4: "Cancelar reserva confirmada" — el empleado no puede, solo el ADMIN.
+// negocio.md §6.4: "Cancelar reserva confirmada" — el empleado no puede, solo el ADMIN. También
+// cubre rechazar una SOLICITADA (cancha sin pago, Venue.requiresPayment=false) sin cambios: el guard
+// de abajo es el genérico canTransition(booking.status, CANCELADA), no está hardcodeado a
+// CONFIRMADA — con SOLICITADA→CANCELADA agregado en ALLOWED_TRANSITIONS, esta misma función ya
+// sirve para "Rechazar solicitud" en la UI (solo cambia el label del botón).
 export async function cancelConfirmedBooking(formData: FormData): Promise<void> {
   const parsed = cancelBookingSchema.safeParse({
     bookingId: formData.get("bookingId"),
@@ -718,6 +727,94 @@ export async function cancelConfirmedBooking(formData: FormData): Promise<void> 
     query.set("phone", parsed.data.phone);
   }
   query.set("cancelada", "1");
+  redirect(`/admin/reservas?${query.toString()}`);
+}
+
+// Confirma una SOLICITADA (cancha sin pago): acá es donde recién se reclama la franja real
+// (blockingSlotKey/SlotLock) — hasta este momento la solicitud no bloqueaba nada. Si alguien más ya
+// tomó esa hora con una reserva real mientras la solicitud esperaba, la transacción choca contra el
+// índice único de blockingSlotKey y se redirige con cupo_no_disponible (mismo patrón que
+// createBooking/createRecurringBooking más abajo).
+export async function confirmSolicitud(formData: FormData): Promise<void> {
+  const parsed = cancelBookingSchema.safeParse({
+    bookingId: formData.get("bookingId"),
+    dateFrom: formData.get("dateFrom") ?? undefined,
+    dateTo: formData.get("dateTo") ?? undefined,
+    venueId: formData.get("venueId") ?? undefined,
+    type: formData.get("type") ?? undefined,
+    status: formData.get("status") ?? undefined,
+    name: formData.get("name") ?? undefined,
+    phone: formData.get("phone") ?? undefined,
+    vista: formData.get("vista") ?? undefined,
+    fecha: formData.get("fecha") ?? undefined,
+  });
+  if (!parsed.success) {
+    notFound();
+  }
+
+  const { session } = await requireAdminSession();
+
+  const booking = await db.booking.findUnique({ where: { id: parsed.data.bookingId } });
+  if (!booking || !canTransition(booking.status, BookingStatus.CONFIRMADA)) {
+    notFound();
+  }
+
+  const venue = await db.venue.findUnique({ where: { id: booking.venueId } });
+  if (!venue) {
+    notFound();
+  }
+
+  const unitIds = getVenueUnitIds(venue);
+  const slotLockKeys = buildSlotLockKeys(unitIds, booking.date, booking.startTime);
+
+  const buildRedirectQuery = () => {
+    const query = new URLSearchParams();
+    if (parsed.data.vista) query.set("vista", parsed.data.vista);
+    if (parsed.data.fecha) query.set("fecha", parsed.data.fecha);
+    if (parsed.data.dateFrom !== undefined) query.set("dateFrom", parsed.data.dateFrom);
+    if (parsed.data.dateTo !== undefined) query.set("dateTo", parsed.data.dateTo);
+    if (parsed.data.venueId) query.set("venueId", parsed.data.venueId);
+    if (parsed.data.type) query.set("type", parsed.data.type);
+    if (parsed.data.status) query.set("status", parsed.data.status);
+    if (parsed.data.name) query.set("name", parsed.data.name);
+    if (parsed.data.phone) query.set("phone", parsed.data.phone);
+    return query;
+  };
+
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: BookingStatus.CONFIRMADA,
+          blockingSlotKey: computeBlockingSlotKey(venue.id, booking.date, booking.startTime),
+        },
+      });
+      for (const key of slotLockKeys) {
+        await tx.slotLock.create({ data: { key, bookingId: booking.id } });
+      }
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      const errorQuery = buildRedirectQuery();
+      errorQuery.set("error", "cupo_no_disponible");
+      redirect(`/admin/reservas?${errorQuery.toString()}`);
+    }
+    throw error;
+  }
+
+  await sendBookingConfirmedEmails(booking);
+
+  await logAdminAction({
+    orgId: booking.orgId,
+    actorUserId: session.user.id,
+    actorName: session.user.name,
+    action: "booking.confirmSolicitud",
+    summary: `Confirmó la solicitud de ${booking.customerName || "cliente sin nombre"} (${venue.name}) del ${booking.date.toISOString().slice(0, 10)} ${booking.startTime}`,
+  });
+
+  const query = buildRedirectQuery();
+  query.set("solicitudConfirmada", "1");
   redirect(`/admin/reservas?${query.toString()}`);
 }
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { getLowStockProducts, getPendingPaymentBookings } from "@/lib/admin/queries";
+import { getLowStockProducts, getPendingPaymentBookings, getPendingSolicitudBookings } from "@/lib/admin/queries";
 import { requireAdminSession } from "@/lib/auth/session-guards";
 
 export default async function AlertasPage() {
@@ -12,9 +12,10 @@ export default async function AlertasPage() {
     notFound();
   }
 
-  const [lowStockProducts, pendingBookings] = await Promise.all([
+  const [lowStockProducts, pendingBookings, pendingSolicitudes] = await Promise.all([
     getLowStockProducts(organization.id),
     getPendingPaymentBookings(organization.id),
+    getPendingSolicitudBookings(organization.id),
   ]);
 
   return (
@@ -63,6 +64,29 @@ export default async function AlertasPage() {
           </ul>
         )}
         <Link href="/admin/reservas?status=PENDIENTE_PAGO" className="mt-3 inline-block text-sm text-blue-700 underline">
+          Ir a reservas
+        </Link>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-gray-200 p-4">
+        <h2 className="text-sm font-medium text-gray-700">
+          🙋 Solicitudes sin confirmar {pendingSolicitudes.length > 0 && `(${pendingSolicitudes.length})`}
+        </h2>
+        {pendingSolicitudes.length === 0 ? (
+          <p className="mt-2 text-sm text-gray-500">Sin solicitudes pendientes de confirmar.</p>
+        ) : (
+          <ul className="mt-3 grid gap-2">
+            {pendingSolicitudes.map((booking) => (
+              <li key={booking.id} className="flex items-center justify-between text-sm">
+                <span>
+                  {booking.dateIso} {booking.startTime} — {booking.venueName}
+                </span>
+                <span className="text-gray-500">{booking.customerName}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Link href="/admin/reservas?status=SOLICITADA" className="mt-3 inline-block text-sm text-blue-700 underline">
           Ir a reservas
         </Link>
       </div>

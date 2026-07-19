@@ -76,6 +76,41 @@ export const NotificationService = {
     );
   },
 
+  // Aviso interno al admin de una SOLICITUD sin pago (cancha con Venue.requiresPayment=false) — a
+  // diferencia de sendNewBookingAlertEmail, esto no es una reserva confirmada: el admin tiene que
+  // decidir. Incluye un link wa.me al teléfono del cliente para que el admin conteste con un toque
+  // (no hay envío de WhatsApp automático real todavía — ver el TODO de arriba).
+  async sendNewBookingRequestAlertEmail(params: {
+    adminEmail: string;
+    customerName: string;
+    customerPhone: string;
+    venueName: string;
+    dateLabel: string;
+    startTime: string;
+    endTime: string;
+    totalAmount: number;
+    confirmUrl: string;
+  }): Promise<void> {
+    const waMessage = `Hola ${params.customerName}, recibimos tu solicitud de reserva en ${params.venueName} el ${params.dateLabel} a las ${params.startTime}.`;
+    const waLink = `https://wa.me/57${params.customerPhone}?text=${encodeURIComponent(waMessage)}`;
+
+    await sendEmail(
+      params.adminEmail,
+      `Nueva solicitud sin pago — requiere confirmación — ${params.venueName}`,
+      `<p>Entró una solicitud de reserva <strong>sin abono ni pago</strong>. No se aparta el cupo
+       hasta que la confirmes.</p>
+       <ul>
+         <li>Cliente: ${params.customerName} (${params.customerPhone})</li>
+         <li>Cancha: ${params.venueName}</li>
+         <li>Fecha: ${params.dateLabel}</li>
+         <li>Horario: ${params.startTime} - ${params.endTime}</li>
+         <li>Tarifa: $${params.totalAmount.toLocaleString("es-CO")}</li>
+       </ul>
+       <p><a href="${waLink}">Escribirle por WhatsApp</a></p>
+       <p><a href="${params.confirmUrl}">Confirmar o rechazar desde el panel</a></p>`,
+    );
+  },
+
   // Aviso interno al admin del complejo — negocio.md: "notificando en paralelo a la recepción".
   async sendNewBookingAlertEmail(params: {
     adminEmail: string;

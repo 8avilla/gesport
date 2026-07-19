@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { cancelConfirmedBooking } from "@/lib/admin/actions";
+import { cancelConfirmedBooking, confirmSolicitud } from "@/lib/admin/actions";
 import { BookingStatus } from "@/lib/booking/state-machine";
 import { getPaymentState, PAYMENT_STATE_BADGE_STYLE, PAYMENT_STATE_LABEL, STATUS_BADGE_STYLE, STATUS_LABEL } from "@/lib/booking/status-display";
 import { VENUE_TYPE_LABEL } from "@/lib/venues/type-info";
@@ -222,6 +222,33 @@ export function BookingsTable({
                           </SubmitButton>
                         </form>
                       )}
+                      {booking.status === BookingStatus.SOLICITADA && (
+                        <div className="inline-flex gap-1.5">
+                          <form action={confirmSolicitud} className="inline">
+                            <input type="hidden" name="bookingId" value={booking.id} />
+                            {cancelFilterFields}
+                            <SubmitButton
+                              pendingLabel="Confirmando…"
+                              className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white
+                                hover:bg-emerald-800"
+                            >
+                              Confirmar
+                            </SubmitButton>
+                          </form>
+                          <form action={cancelConfirmedBooking} className="inline">
+                            <input type="hidden" name="bookingId" value={booking.id} />
+                            {cancelFilterFields}
+                            <SubmitButton
+                              pendingLabel="Rechazando…"
+                              confirmMessage="¿Rechazar esta solicitud?"
+                              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white
+                                hover:bg-red-700"
+                            >
+                              Rechazar
+                            </SubmitButton>
+                          </form>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -256,6 +283,31 @@ export function BookingsTable({
                         Cancelar reserva
                       </SubmitButton>
                     </form>
+                  )}
+                  {booking.status === BookingStatus.SOLICITADA && (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <form action={confirmSolicitud}>
+                        <input type="hidden" name="bookingId" value={booking.id} />
+                        {cancelFilterFields}
+                        <SubmitButton
+                          pendingLabel="Confirmando…"
+                          className="w-full rounded-md bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+                        >
+                          Confirmar
+                        </SubmitButton>
+                      </form>
+                      <form action={cancelConfirmedBooking}>
+                        <input type="hidden" name="bookingId" value={booking.id} />
+                        {cancelFilterFields}
+                        <SubmitButton
+                          pendingLabel="Rechazando…"
+                          confirmMessage="¿Rechazar esta solicitud?"
+                          className="w-full rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
+                        >
+                          Rechazar
+                        </SubmitButton>
+                      </form>
+                    </div>
                   )}
                 </li>
               ))}

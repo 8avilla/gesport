@@ -25,13 +25,21 @@ export function isBlockingStatus(status: BookingStatus): boolean {
 
 // Transiciones permitidas de la máquina de estados (negocio.md §6.1).
 const ALLOWED_TRANSITIONS: Record<BookingStatus, ReadonlyArray<BookingStatus>> = {
-  [BookingStatus.PENDIENTE_PAGO]: [BookingStatus.CONFIRMADA, BookingStatus.EXPIRADA, BookingStatus.CANCELADA],
+  [BookingStatus.PENDIENTE_PAGO]: [
+    BookingStatus.CONFIRMADA,
+    BookingStatus.EXPIRADA,
+    BookingStatus.CANCELADA,
+    BookingStatus.SOLICITADA,
+  ],
   [BookingStatus.CONFIRMADA]: [BookingStatus.EN_CURSO, BookingStatus.CANCELADA, BookingStatus.NO_SHOW],
   [BookingStatus.EN_CURSO]: [BookingStatus.FINALIZADA],
   [BookingStatus.FINALIZADA]: [],
   [BookingStatus.CANCELADA]: [],
   [BookingStatus.NO_SHOW]: [],
   [BookingStatus.EXPIRADA]: [],
+  // Cancha sin pago (Venue.requiresPayment=false): el admin confirma (reclama el cupo real) o
+  // rechaza — nunca expira sola ni pasa a otro estado.
+  [BookingStatus.SOLICITADA]: [BookingStatus.CONFIRMADA, BookingStatus.CANCELADA],
 };
 
 export function canTransition(from: BookingStatus, to: BookingStatus): boolean {
@@ -46,6 +54,14 @@ export function computeBlockingSlotKey(venueId: string, date: Date, startTime: s
 // de blockingSlotKey (Prisma no soporta índices únicos sparse/parciales en MongoDB).
 export function computeReleasedSlotKey(bookingId: string): string {
   return `released_${bookingId}`;
+}
+
+// Mismo mecanismo que computeReleasedSlotKey (clave única determinística, no colisiona con el
+// formato real "<venueId>_<date>_<startTime>"), pero para SOLICITADA — un estado NO terminal (puede
+// pasar a CONFIRMADA, que ahí sí reclama la clave real vía computeBlockingSlotKey). Prefijo
+// distinto a propósito: quien greppee "released_" espera solo reservas ya cerradas.
+export function computeSolicitudSlotKey(bookingId: string): string {
+  return `solicitud_${bookingId}`;
 }
 
 export interface CancellationPolicy {

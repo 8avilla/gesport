@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { toast } from "sonner";
 import {
   createBookingShell,
+  submitBookingRequest,
   updateBookingContact,
   uploadManualReceipt,
   type CreateBookingResult,
@@ -244,36 +245,71 @@ export function ReservarForm({
       </div>
 
       <div className="mt-4 rounded-xl border border-gray-200 p-4">
-        <h2 className="text-sm font-medium text-gray-700">Resumen de pago</h2>
-        <div className="mt-3 flex justify-between text-sm">
-          <span className="text-gray-500">Total reserva (1 hora)</span>
-          <span className="text-gray-900">${shell.totalAmount.toLocaleString("es-CO")}</span>
-        </div>
-        <div className="mt-1.5 flex justify-between text-sm">
-          <span className="text-gray-500">Abono (para confirmar)</span>
-          <span className="text-gray-900">- ${shell.depositAmount.toLocaleString("es-CO")}</span>
-        </div>
-        <div className="mt-1.5 flex justify-between border-t border-gray-100 pt-1.5 text-sm font-medium">
-          <span className="text-gray-700">Saldo restante</span>
-          <span className="text-lg font-semibold text-emerald-700">${remainder.toLocaleString("es-CO")}</span>
-        </div>
-        <p className="mt-3 flex items-start gap-2 rounded-md bg-emerald-50 p-2.5 text-xs text-emerald-800">
-          <span>ℹ️</span>
-          <span>Paga solo el abono para confirmar tu reserva. El saldo restante lo pagas en la cancha.</span>
-        </p>
-        {cancellationWindowHours > 0 && (
-          <p className="mt-2 flex items-start gap-2 rounded-md bg-gray-50 p-2.5 text-xs text-gray-600">
-            <span>🛡️</span>
-            <span>
-              Cancela gratis hasta {cancellationWindowHours} horas antes de tu reserva, escribiéndonos por
-              WhatsApp.
-            </span>
-          </p>
+        <h2 className="text-sm font-medium text-gray-700">
+          {shell.requiresPayment ? "Resumen de pago" : "Resumen de tu solicitud"}
+        </h2>
+        {shell.requiresPayment ? (
+          <>
+            <div className="mt-3 flex justify-between text-sm">
+              <span className="text-gray-500">Total reserva (1 hora)</span>
+              <span className="text-gray-900">${shell.totalAmount.toLocaleString("es-CO")}</span>
+            </div>
+            <div className="mt-1.5 flex justify-between text-sm">
+              <span className="text-gray-500">Abono (para confirmar)</span>
+              <span className="text-gray-900">- ${shell.depositAmount.toLocaleString("es-CO")}</span>
+            </div>
+            <div className="mt-1.5 flex justify-between border-t border-gray-100 pt-1.5 text-sm font-medium">
+              <span className="text-gray-700">Saldo restante</span>
+              <span className="text-lg font-semibold text-emerald-700">${remainder.toLocaleString("es-CO")}</span>
+            </div>
+            <p className="mt-3 flex items-start gap-2 rounded-md bg-emerald-50 p-2.5 text-xs text-emerald-800">
+              <span>ℹ️</span>
+              <span>Paga solo el abono para confirmar tu reserva. El saldo restante lo pagas en la cancha.</span>
+            </p>
+            {cancellationWindowHours > 0 && (
+              <p className="mt-2 flex items-start gap-2 rounded-md bg-gray-50 p-2.5 text-xs text-gray-600">
+                <span>🛡️</span>
+                <span>
+                  Cancela gratis hasta {cancellationWindowHours} horas antes de tu reserva, escribiéndonos por
+                  WhatsApp.
+                </span>
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="mt-3 flex justify-between text-sm">
+              <span className="text-gray-500">Tarifa (1 hora)</span>
+              <span className="text-gray-900">${shell.totalAmount.toLocaleString("es-CO")}</span>
+            </div>
+            <p className="mt-3 flex items-start gap-2 rounded-md bg-indigo-50 p-2.5 text-xs text-indigo-800">
+              <span>ℹ️</span>
+              <span>
+                Esta cancha no pide pago por adelantado. Tu solicitud queda pendiente hasta que el complejo la
+                confirme — <strong>esto no garantiza tu cupo</strong>.
+              </span>
+            </p>
+          </>
         )}
       </div>
 
       <div className="mt-4">
-        {shell.boldPayload ? (
+        {!shell.requiresPayment ? (
+          <form action={submitBookingRequest} className="grid gap-3 rounded-xl border border-gray-200 p-4">
+            <input type="hidden" name="bookingId" value={shell.bookingId} />
+            <input type="hidden" name="orgSlug" value={orgSlug} />
+            {!contactComplete && (
+              <p className="text-xs text-amber-700">Completa tu nombre y WhatsApp arriba primero.</p>
+            )}
+            <SubmitButton
+              pendingLabel="Enviando…"
+              disabled={!contactComplete}
+              className="rounded-md bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800 disabled:bg-gray-300"
+            >
+              Enviar solicitud
+            </SubmitButton>
+          </form>
+        ) : shell.boldPayload ? (
           <>
             <BoldButton
               payload={shell.boldPayload}
